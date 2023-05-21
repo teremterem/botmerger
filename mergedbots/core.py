@@ -1,3 +1,4 @@
+# pylint: disable=no-name-in-module
 """Core logic of MergedBots library."""
 from collections import defaultdict
 from typing import Callable, AsyncGenerator
@@ -41,6 +42,11 @@ class MergedBot(MergedParticipant):
     description: str = None
     fulfillment_func: FulfillmentFunc = None
 
+    def __init__(self, handle, name=None, **kwargs):
+        if not name:
+            name = handle
+        super().__init__(handle=handle, name=name, **kwargs)
+
     async def fulfill(self, message: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
         """Fulfill a message."""
         async for response in self.fulfillment_func(self, message):
@@ -50,37 +56,6 @@ class MergedBot(MergedParticipant):
         """A decorator that registers a fulfillment function for the MergedBot."""
         self.fulfillment_func = fulfillment_func
         return fulfillment_func
-
-
-class BotMerger(MergedBase):
-    """A manager of merged bots."""
-
-    merged_bots: dict[str, MergedBot] = Field(default_factory=dict)
-
-    def register_bot(self, handle: str, name: str = None, description: str = None) -> MergedBot:
-        """Register a bot."""
-        bot = MergedBot(
-            handle=handle,
-            name=name or handle,
-            description=description,
-        )
-        self.merged_bots[handle] = bot
-        return bot
-
-    def get_bot(self, bot_handle: str, fallback_bot_handle: str = None) -> MergedBot:
-        """Get a bot by its handle. If the bot is not found, return a fallback bot."""
-        try:
-            bot = self.merged_bots[bot_handle]
-        except KeyError as exc1:
-            if not fallback_bot_handle:
-                raise
-
-            try:
-                bot = self.merged_bots[fallback_bot_handle]
-            except KeyError as exc2:
-                raise exc2 from exc1
-
-        return bot
 
 
 class MergedUser(MergedParticipant):
