@@ -6,7 +6,7 @@ authors = ["Oleksandr Tereshchenko <toporok@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"  # TODO check which other versions are supported
+python = "^3.11"  # TODO extend this to older versions too
 pydantic = "^1"
 
 [build-system]
