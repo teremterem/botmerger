@@ -1,5 +1,6 @@
 """Discord integration for MergedBots."""
 import contextlib
+import logging
 import re
 from typing import Any, AsyncGenerator
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel, PrivateAttr
 from ..core import MergedUser, MergedMessage, MergedBot
 from ..errors import ErrorWrapper
 from ..utils import format_error_with_full_tb, get_text_chunks
+
+logger = logging.getLogger(__name__)
 
 DISCORD_MSG_LIMIT = 1900
 
@@ -70,6 +73,7 @@ class MergedBotDiscord(BaseModel):
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 if isinstance(exc, ErrorWrapper):
                     exc = exc.error
+                logger.error("Error while processing a Discord message: %s", exc, exc_info=exc)
                 for chunk in get_text_chunks(format_error_with_full_tb(exc), DISCORD_MSG_LIMIT):
                     await discord_message.channel.send(f"```\n{chunk}\n```")
 
