@@ -1,13 +1,12 @@
 """MergedBots package."""
-from .core import BotMerger
+from .core import BotMerger, FulfillmentFunc, MergedMessage, MergedBot
 from .errors import MergedBotsError, ErrorWrapper
-from .models import FulfillmentFunc, MergedMessage, MergedBot
 
 __all__ = [
     "BotMerger",
     "ErrorWrapper",
     "FulfillmentFunc",
-    "MergedBotsError",
     "MergedBot",
+    "MergedBotsError",
     "MergedMessage",
 ]

@@ -4,25 +4,23 @@ import re
 from typing import Any, AsyncGenerator
 
 import discord
+from pydantic import BaseModel, PrivateAttr
 
-from ..core import BotMerger
+from ..core import MergedUser, MergedMessage, MergedBot
 from ..errors import ErrorWrapper
-from ..models import MergedUser, MergedMessage
 from ..utils import format_error_with_full_tb, get_text_chunks
 
 DISCORD_MSG_LIMIT = 1900
 
 
-class MergedBotDiscord:
+class MergedBotDiscord(BaseModel):
     """Integration of a merged bot with Discord."""
 
-    def __init__(self, bot_merger: BotMerger, merged_bot_handle: str):
-        self._bot_merger = bot_merger
-        self._merged_bot_handle = merged_bot_handle
+    bot: MergedBot
 
-        # TODO turn these dicts into DiscordBackend, LocalDiscordBackend, RedisDiscordBackend, etc.
-        self._channel_conv_tails: dict[int, MergedMessage | None] = {}
-        self._users: dict[int, MergedUser] = {}
+    # TODO turn these dicts into DiscordBackend, LocalDiscordBackend, RedisDiscordBackend, etc.
+    _channel_conv_tails: dict[int, MergedMessage | None] = PrivateAttr(default_factory=dict)
+    _users: dict[int, MergedUser] = PrivateAttr(default_factory=dict)
 
     def attach_discord_client(self, discord_client: discord.Client) -> None:
         """Attach a Discord client to a merged bot by its handle."""
@@ -60,7 +58,7 @@ class MergedBotDiscord:
                 )
                 self._channel_conv_tails[discord_message.channel.id] = user_message
 
-                async for bot_message in self.fulfill_message_with_typing(
+                async for bot_message in self._fulfill_message_with_typing(
                     message=user_message,
                     typing_context_manager=discord_message.channel.typing(),
                 ):
@@ -77,14 +75,14 @@ class MergedBotDiscord:
 
         discord_client.event(on_message)
 
-    async def fulfill_message_with_typing(
+    async def _fulfill_message_with_typing(
         self, message: MergedMessage, typing_context_manager: Any
     ) -> AsyncGenerator[MergedMessage, None]:
         """
         Fulfill a message. Returns a generator that would yield zero or more responses to the message.
         typing_context_manager is a context manager that would be used to indicate that the bot is typing.
         """
-        response_generator = self._bot_merger.fulfill_message(self._merged_bot_handle, message)
+        response_generator = self.bot.fulfill(message)
 
         response = None
         while True:

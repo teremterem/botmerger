@@ -39,7 +39,7 @@ class MergedBot(MergedParticipant):
 
     handle: str
     description: str = None
-    fulfillment_func: FulfillmentFunc
+    fulfillment_func: FulfillmentFunc = None
 
     async def fulfill(self, message: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
         """Fulfill a message."""
