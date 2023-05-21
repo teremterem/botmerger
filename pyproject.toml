@@ -1,3 +1,6 @@
+[tool.black]
+line-length = 119
+
 [tool.poetry]
 name = "mergedbots"
 version = "0.1.0"
@@ -8,6 +11,12 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"  # TODO extend this to older versions too
 pydantic = "^1"
+
+[tool.poetry.dev-dependencies]
+black = "*"
+ipython = "*"
+pre-commit = "*"
+pylint = "*"
 
 [tool.poetry.extras]
 langchain = ["langchain"]
