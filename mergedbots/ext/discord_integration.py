@@ -1,3 +1,4 @@
+# pylint: disable=no-name-in-module
 """Discord integration for MergedBots."""
 import contextlib
 import logging
@@ -21,7 +22,7 @@ class MergedBotDiscord(BaseModel):
 
     bot: MergedBot
 
-    # TODO turn these dicts into DiscordBackend, LocalDiscordBackend, RedisDiscordBackend, etc.
+    # TODO turn these dicts into InMemoryDiscordBackend vs RedisDiscordBackend
     _channel_conv_tails: dict[int, MergedMessage | None] = PrivateAttr(default_factory=dict)
     _users: dict[int, MergedUser] = PrivateAttr(default_factory=dict)
 

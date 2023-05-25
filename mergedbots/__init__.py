@@ -1,5 +1,5 @@
 """MergedBots package."""
-from .core import FulfillmentFunc, MergedMessage, MergedBot
+from .core import FulfillmentFunc, MergedMessage, MergedBot, MergedUser
 from .errors import MergedBotsError, ErrorWrapper
 
 __all__ = [
@@ -8,4 +8,5 @@ __all__ = [
     "MergedBot",
     "MergedBotsError",
     "MergedMessage",
+    "MergedUser",
 ]

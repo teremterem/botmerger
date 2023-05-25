@@ -12,6 +12,8 @@ FulfillmentFunc = Callable[["MergedBot", "MergedMessage"], AsyncGenerator["Merge
 class MergedBase(BaseModel):
     """Base class for all MergedBots models."""
 
+    # TODO make sure all the objects from this module are only created through an Abstract Factory
+
     uuid: UUID4 = Field(default_factory=uuid4)
 
     def __eq__(self, other: object) -> bool:
@@ -42,7 +44,7 @@ class MergedBot(MergedParticipant):
     description: str = None
     fulfillment_func: FulfillmentFunc = None
 
-    def __init__(self, handle, name=None, **kwargs):
+    def __init__(self, handle, name=None, **kwargs) -> None:
         if not name:
             name = handle
         super().__init__(handle=handle, name=name, **kwargs)
