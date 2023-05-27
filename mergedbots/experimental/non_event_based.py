@@ -18,7 +18,7 @@ _SESSION_ENDED_SENTINEL = object()
 
 class NonEventBasedMergedBot(MergedBot):
     """
-    A bot, whose fulfillment_func is called once per the whole user interaction. NonEventBasedChatSession is used
+    A bot, whose fulfillment_func is called once per the whole user interaction. NonEventBasedChatSession is used to
     send and receive messages in an algorithmic way, without events.
     """
 
