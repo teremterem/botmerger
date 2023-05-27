@@ -2,7 +2,7 @@
 """Models of MergedBots library."""
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Callable, AsyncGenerator
+from typing import Callable, AsyncGenerator, Any
 
 from pydantic import BaseModel, PrivateAttr, UUID4
 
@@ -15,6 +15,7 @@ class MergedObject(BaseModel):
     # TODO make sure all the objects from this module are only created through an Abstract Factory
 
     uuid: UUID4
+    object_manager: "ObjectManager"
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
@@ -26,26 +27,6 @@ class MergedObject(BaseModel):
         """Get the hash of the model's uuid."""
         # TODO are we sure we don't want to keep these models non-hashable (pydantic default) ?
         return hash(self.uuid)
-
-
-class ObjectManager(ABC, BaseModel):
-    """An abstract object manager."""
-
-    @abstractmethod
-    def register_object(self, obj: MergedObject) -> None:
-        """Register an object."""
-
-    @abstractmethod
-    def register_bot_handle(self, bot_handle: str, bot_uuid: UUID4) -> None:
-        """Register a bot handle."""
-
-    @abstractmethod
-    def get_object(self, uuid: UUID4) -> MergedObject | None:
-        """Get an object by its uuid."""
-
-    @abstractmethod
-    def get_bot_uuid(self, handle: str) -> UUID4 | None:
-        """Get a bot's uuid by its handle."""
 
 
 class MergedParticipant(MergedObject):
@@ -192,3 +173,46 @@ class MergedMessage(MergedObject):
             is_still_typing=False,
             is_visible_to_bots=True,
         )
+
+
+class ObjectManager(ABC, BaseModel):
+    """An abstract object manager."""
+
+    @abstractmethod
+    def register_object(self, key: Any, value: Any) -> None:
+        """Register an object."""
+
+    @abstractmethod
+    def get_object(self, key: Any) -> Any | None:
+        """Get an object by its key."""
+
+    def register_merged_object(self, obj: MergedObject) -> None:
+        """Register a merged object."""
+        self.register_object(obj.uuid, obj)
+
+    def get_merged_object(self, uuid: UUID4) -> MergedObject | None:
+        """Get a merged object by its uuid."""
+        obj = self.get_object(uuid)
+        if not isinstance(obj, MergedObject):
+            raise_wrong_object_type(uuid, MergedObject, obj)
+        return obj
+
+    def register_bot(self, bot: MergedBot) -> None:
+        """Register a bot."""
+        self.register_merged_object(bot)
+        self.register_object(("bot_handle", bot.handle), bot)
+
+    def get_bot(self, handle: str) -> MergedBot | None:
+        """Get a bot by its handle."""
+        obj = self.get_object(("bot_handle", handle))
+        if not isinstance(obj, MergedBot):
+            raise_wrong_object_type(handle, MergedBot, obj)
+        return obj
+
+
+def raise_wrong_object_type(key: Any, expected_type: type, actual_obj: Any) -> None:
+    """Raise an exception for a wrong object type."""
+    raise TypeError(
+        f"wrong type of object by the key {key!r}: "
+        f"expected {expected_type.__name__!r}, got {type(actual_obj).__name__!r}",
+    )
