@@ -1,24 +1,23 @@
 # pylint: disable=no-name-in-module
-"""Core logic of MergedBots library."""
+"""Models of MergedBots library."""
 from collections import defaultdict
 from typing import Callable, AsyncGenerator
-from uuid import uuid4
 
-from pydantic import BaseModel, PrivateAttr, Field, UUID4
+from pydantic import BaseModel, PrivateAttr, UUID4
 
 FulfillmentFunc = Callable[["MergedBot", "MergedMessage"], AsyncGenerator["MergedMessage", None]]
 
 
-class MergedBase(BaseModel):
+class MergedObject(BaseModel):
     """Base class for all MergedBots models."""
 
     # TODO make sure all the objects from this module are only created through an Abstract Factory
 
-    uuid: UUID4 = Field(default_factory=uuid4)
+    uuid: UUID4
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
-        if not isinstance(other, MergedBase):
+        if not isinstance(other, MergedObject):
             return False
         return self.uuid == other.uuid
 
@@ -28,7 +27,7 @@ class MergedBase(BaseModel):
         return hash(self.uuid)
 
 
-class MergedParticipant(MergedBase):
+class MergedParticipant(MergedObject):
     """A chat participant."""
 
     name: str
@@ -44,11 +43,6 @@ class MergedBot(MergedParticipant):
     description: str = None
     fulfillment_func: FulfillmentFunc = None
 
-    def __init__(self, handle, name=None, **kwargs) -> None:
-        if not name:
-            name = handle
-        super().__init__(handle=handle, name=name, **kwargs)
-
     async def fulfill(self, message: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
         """Fulfill a message."""
         async for response in self.fulfillment_func(self, message):
@@ -57,6 +51,7 @@ class MergedBot(MergedParticipant):
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
         """A decorator that registers a fulfillment function for the MergedBot."""
         self.fulfillment_func = fulfillment_func
+        fulfillment_func.merged_bot = self
         return fulfillment_func
 
 
@@ -66,7 +61,7 @@ class MergedUser(MergedParticipant):
     is_human: bool = True
 
 
-class MergedMessage(MergedBase):
+class MergedMessage(MergedObject):
     """A message that can be sent by a bot or a user."""
 
     sender: MergedParticipant

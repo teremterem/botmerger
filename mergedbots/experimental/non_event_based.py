@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, AsyncGenerator
 
 from pydantic import PrivateAttr
 
-from ..core import MergedBot, MergedMessage, MergedBase, MergedParticipant
+from ..models import MergedBot, MergedMessage, MergedObject, MergedParticipant
 
 SessionFulfillmentFunc = Callable[["NonEventBasedMergedBot", "NonEventBasedChatSession"], Awaitable[None]]
 
@@ -32,6 +32,7 @@ class NonEventBasedMergedBot(MergedBot):
         if session:
             await session._inbound_queue.put(message)
         else:
+            # TODO first message should also be read via `wait_for_next_message`
             session = NonEventBasedChatSession(bot=self, originator=message.originator, current_inbound_msg=message)
             self._sessions[message.originator] = session
             asyncio.create_task(self._run_session_till_the_end(session))
@@ -59,7 +60,7 @@ class NonEventBasedMergedBot(MergedBot):
         return fulfillment_func
 
 
-class NonEventBasedChatSession(MergedBase):
+class NonEventBasedChatSession(MergedObject):
     """
     An object that represents a chat session between a bot and a user (or, more generally, an originator, because
     this might be two bots talking to each other).

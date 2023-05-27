@@ -8,8 +8,8 @@ from typing import Any, AsyncGenerator
 import discord
 from pydantic import BaseModel, PrivateAttr
 
-from ..core import MergedUser, MergedMessage, MergedBot
 from ..errors import ErrorWrapper
+from ..models import MergedUser, MergedMessage, MergedBot
 from ..utils import format_error_with_full_tb, get_text_chunks
 
 logger = logging.getLogger(__name__)

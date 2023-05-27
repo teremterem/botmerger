@@ -7,8 +7,8 @@ from typing import AsyncGenerator, Coroutine
 
 from langchain.callbacks.base import AsyncCallbackHandler
 
-from ..core import MergedBot, MergedMessage
 from ..errors import ErrorWrapper
+from ..models import MergedBot, MergedMessage
 
 
 class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disable=abstract-method
@@ -77,7 +77,7 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
             split_idx = text_so_far.rfind("\n\n")
             if split_idx != -1:
                 self._msg_queue.put_nowait(self._message.interim_bot_response(self._bot, text_so_far[:split_idx]))
-                self._str_io = io.StringIO(text_so_far[split_idx + 2:])
+                self._str_io = io.StringIO(text_so_far[split_idx + 2 :])
 
     async def on_llm_end(self, *args, **kwargs) -> None:  # pylint: disable=unused-argument
         if self._verbose:
