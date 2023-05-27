@@ -1,7 +1,7 @@
 """MergedBots package."""
-from .core import BotManager, ObjectManager, InMemoryObjectManager
+from .core import BotManager, InMemoryObjectManager
 from .errors import MergedBotsError, ErrorWrapper
-from .models import FulfillmentFunc, MergedMessage, MergedBot, MergedUser
+from .models import FulfillmentFunc, MergedMessage, MergedBot, MergedUser, ObjectManager
 
 __all__ = [
     "BotManager",

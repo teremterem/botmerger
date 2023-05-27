@@ -1,5 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models of MergedBots library."""
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Callable, AsyncGenerator
 
@@ -25,6 +26,26 @@ class MergedObject(BaseModel):
         """Get the hash of the model's uuid."""
         # TODO are we sure we don't want to keep these models non-hashable (pydantic default) ?
         return hash(self.uuid)
+
+
+class ObjectManager(ABC, BaseModel):
+    """An abstract object manager."""
+
+    @abstractmethod
+    def register_object(self, obj: MergedObject) -> None:
+        """Register an object."""
+
+    @abstractmethod
+    def register_bot_handle(self, bot_handle: str, bot_uuid: UUID4) -> None:
+        """Register a bot handle."""
+
+    @abstractmethod
+    def get_object(self, uuid: UUID4) -> MergedObject | None:
+        """Get an object by its uuid."""
+
+    @abstractmethod
+    def get_bot_uuid(self, handle: str) -> UUID4 | None:
+        """Get a bot's uuid by its handle."""
 
 
 class MergedParticipant(MergedObject):

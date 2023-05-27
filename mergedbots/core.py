@@ -1,33 +1,12 @@
 # pylint: disable=no-name-in-module
 """Core logic of MergedBots library."""
-from abc import ABC, abstractmethod
 from typing import Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, PrivateAttr
 
 from .errors import BotHandleTakenError, BotNotFoundError, WrongMergedObjectError
-from .models import MergedBot, MergedObject
-
-
-class ObjectManager(ABC, BaseModel):
-    """An abstract object manager."""
-
-    @abstractmethod
-    def register_object(self, obj: MergedObject) -> None:
-        """Register an object."""
-
-    @abstractmethod
-    def register_bot_handle(self, bot_handle: str, bot_uuid: UUID4) -> None:
-        """Register a bot handle."""
-
-    @abstractmethod
-    def get_object(self, uuid: UUID4) -> Optional[MergedObject]:
-        """Get an object by its uuid."""
-
-    @abstractmethod
-    def get_bot_uuid(self, handle: str) -> Optional[UUID4]:
-        """Get a bot's uuid by its handle."""
+from .models import MergedBot, MergedObject, ObjectManager
 
 
 class BotManager(BaseModel):
