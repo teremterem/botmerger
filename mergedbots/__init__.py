@@ -1,5 +1,5 @@
 """MergedBots package."""
-from .bot_manager import BotManager, ObjectManager, InMemoryObjectManager
+from .core import BotManager, ObjectManager, InMemoryObjectManager
 from .errors import MergedBotsError, ErrorWrapper
 from .models import FulfillmentFunc, MergedMessage, MergedBot, MergedUser
 
