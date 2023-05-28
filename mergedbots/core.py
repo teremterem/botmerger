@@ -21,7 +21,7 @@ class BotManagerBase(BotManager):
     # TODO think about thread-safety ?
 
     async def fulfill(self, bot_handle: str, request: MergedMessage) -> AsyncGenerator[MergedMessage, None]:
-        """Find a bot by its handle and fulfill the request using that bot."""
+        """Find a bot by its handle and fulfill a request using that bot."""
         bot = await self.find_bot(bot_handle)
         # noinspection PyProtectedMember
         async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access
@@ -171,6 +171,23 @@ class InMemoryBotManager(BotManagerBase):
     """An in-memory object manager."""
 
     _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
+
+    async def get_full_conversion(
+        self, conversation_tail: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> list["MergedMessage"]:
+        """Fetch the full conversation history up to the given message inclusively (`conversation_tail`)."""
+        # NOTE: This is a simplistic implementation. A different approach will be needed in case of `RedisBotManager`,
+        # `RemoteBotManager`, and other future implementations, because in those cases history messages will not be
+        # immediately available via `msg.previous_msg`.
+        conversation = []
+        msg = conversation_tail
+        while msg:
+            if include_invisible_to_bots or msg.is_visible_to_bots:
+                conversation.append(msg)
+            msg = msg.previous_msg
+
+        conversation.reverse()
+        return conversation
 
     async def _register_object(self, key: ObjectKey, value: Any) -> None:
         """Register an object."""

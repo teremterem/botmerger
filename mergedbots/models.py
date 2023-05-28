@@ -18,7 +18,7 @@ class BotManager(BaseModel, ABC):
 
     @abstractmethod
     async def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
-        """Find a bot by its handle and fulfill the request using that bot."""
+        """Find a bot by its handle and fulfill a request using that bot."""
 
     @abstractmethod
     def create_bot(self, handle: str, name: str = None, **kwargs) -> "MergedBot":
@@ -37,6 +37,12 @@ class BotManager(BaseModel, ABC):
         self, channel_type: str, channel_specific_id: Any, user_display_name: str, **kwargs
     ) -> "MergedUser":
         """Find or create a user."""
+
+    @abstractmethod
+    async def get_full_conversion(
+        self, conversation_tail: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> list["MergedMessage"]:
+        """Fetch the full conversation history up to the given message inclusively (`conversation_tail`)."""
 
     @abstractmethod
     async def create_originator_message(  # pylint: disable=too-many-arguments
@@ -138,18 +144,9 @@ class MergedMessage(MergedObject):
         """
         return self.sender == self.originator
 
-    def get_full_conversion(self, include_invisible_to_bots: bool = False) -> list["MergedMessage"]:
-        """Get the full conversation that this message is a part of."""
-        raise ValueError("Redo via BotManager")  # TODO
-        conversation = []
-        msg = self
-        while msg:
-            if include_invisible_to_bots or msg.is_visible_to_bots:
-                conversation.append(msg)
-            msg = msg.previous_msg
-
-        conversation.reverse()
-        return conversation
+    async def get_full_conversion(self, include_invisible_to_bots: bool = False) -> list["MergedMessage"]:
+        """Get the full conversation that up to this message (inclusively)."""
+        return await self.manager.get_full_conversion(self, include_invisible_to_bots=include_invisible_to_bots)
 
     def bot_response(
         self,
