@@ -6,13 +6,14 @@ from typing import Any, AsyncGenerator
 
 from pydantic import PrivateAttr, UUID4
 
+from mergedbots.base import BotManager
 from mergedbots.errors import BotHandleTakenError, BotNotFoundError
-from mergedbots.models import BotManager, MergedParticipant, MergedUser, MergedBot, MergedMessage, MergedObject
+from mergedbots.models import MergedParticipant, MergedUser, MergedBot, MergedMessage, MergedObject
 
 ObjectKey = Any | tuple[Any, ...]
 
 
-class BotManagerBase(BotManager):
+class AbstractBotManager(BotManager):
     """
     An abstract factory of everything else in this library. This class implements the common functionality of all
     concrete BotManager implementations.
@@ -167,7 +168,7 @@ class BotManagerBase(BotManager):
             )
 
 
-class InMemoryBotManager(BotManagerBase):
+class InMemoryBotManager(AbstractBotManager):
     """An in-memory object manager."""
 
     _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
