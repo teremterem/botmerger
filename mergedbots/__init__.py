@@ -1,21 +1,21 @@
 """MergedBots package."""
-from mergedbots.core import (
-    BotManager,
+from mergedbots.core import BotManager, InMemoryBotManager
+from mergedbots.models import (
     FulfillmentFunc,
-    InMemoryBotManager,
     MergedBot,
     MergedMessage,
+    MergedObject,
+    MergedParticipant,
     MergedUser,
 )
-from mergedbots.errors import ErrorWrapper, MergedBotsError
 
 __all__ = [
     "BotManager",
-    "ErrorWrapper",
     "FulfillmentFunc",
     "InMemoryBotManager",
     "MergedBot",
-    "MergedBotsError",
     "MergedMessage",
+    "MergedObject",
+    "MergedParticipant",
     "MergedUser",
 ]

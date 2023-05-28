@@ -7,8 +7,8 @@ from typing import AsyncGenerator, Coroutine
 
 from langchain.callbacks.base import AsyncCallbackHandler
 
-from mergedbots.core import MergedBot, MergedMessage
 from mergedbots.errors import ErrorWrapper
+from mergedbots.models import MergedBot, MergedMessage
 
 
 class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disable=abstract-method
