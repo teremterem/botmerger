@@ -76,7 +76,9 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
             split_idx = text_so_far.rfind("\n\n")
             if split_idx != -1:
-                self._msg_queue.put_nowait(self._message.interim_bot_response(self._bot, text_so_far[:split_idx]))
+                self._msg_queue.put_nowait(
+                    await self._message.interim_bot_response(self._bot, text_so_far[:split_idx])
+                )
                 self._str_io = io.StringIO(text_so_far[split_idx + 2 :])
 
     async def on_llm_end(self, *args, **kwargs) -> None:  # pylint: disable=unused-argument
@@ -86,5 +88,5 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
         with self._threading_lock:
             # emitting the last paragraph
-            self._msg_queue.put_nowait(self._message.final_bot_response(self._bot, self._str_io.getvalue()))
+            self._msg_queue.put_nowait(await self._message.final_bot_response(self._bot, self._str_io.getvalue()))
             self._str_io = None  # make this callback object unusable
