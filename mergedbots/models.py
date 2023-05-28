@@ -17,7 +17,7 @@ class BotManager(BaseModel, ABC):
     """An abstract factory of everything else in this library."""
 
     @abstractmethod
-    def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
+    async def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
         """Find a bot by its handle and fulfill the request using that bot."""
 
     @abstractmethod
@@ -25,17 +25,21 @@ class BotManager(BaseModel, ABC):
         """Create a merged bot."""
 
     @abstractmethod
-    def find_bot(self, handle: str) -> "MergedBot":
+    async def create_bot_async(self, handle: str, name: str = None, **kwargs) -> "MergedBot":
+        """Create a merged bot."""
+
+    @abstractmethod
+    async def find_bot(self, handle: str) -> "MergedBot":
         """Fetch a bot by its handle."""
 
     @abstractmethod
-    def find_or_create_user(
+    async def find_or_create_user(
         self, channel_type: str, channel_specific_id: Any, user_display_name: str, **kwargs
     ) -> "MergedUser":
         """Find or create a user."""
 
     @abstractmethod
-    def create_originator_message(  # pylint: disable=too-many-arguments
+    async def create_originator_message(  # pylint: disable=too-many-arguments
         self,
         channel_type: str,
         channel_id: Any,
