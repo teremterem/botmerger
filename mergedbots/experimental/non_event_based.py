@@ -22,6 +22,8 @@ class NonEventBasedMergedBot(MergedBot):
     send and receive messages in an algorithmic way, without events.
     """
 
+    # TODO convert this class into a wrapper around MergedBot rather than a subclass
+
     fulfillment_func: SessionFulfillmentFunc = None
 
     _sessions: PrivateAttr(dict["MergedParticipant", "NonEventBasedChatSession"]) = PrivateAttr(default_factory=dict)

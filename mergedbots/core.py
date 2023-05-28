@@ -1,7 +1,7 @@
 # pylint: disable=no-name-in-module
 """BotManager implementations."""
 from abc import abstractmethod
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from pydantic import PrivateAttr, UUID4
 
@@ -18,6 +18,13 @@ class BotManagerBase(BotManager):
     """
 
     # TODO think about thread-safety ?
+
+    def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
+        """Find a bot by its handle and fulfill the request using that bot."""
+        bot = self.find_bot(bot_handle)
+        # noinspection PyProtectedMember
+        async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access
+            yield response
 
     def create_bot(self, handle: str, name: str = None, **kwargs) -> MergedBot:
         """Create a merged bot."""
@@ -164,4 +171,5 @@ class InMemoryBotManager(BotManagerBase):
         return self._objects.get(key)
 
 
+# TODO RemoteBotManager for distributed configurations ?
 # TODO RedisBotManager ? SQLAlchemyBotManager ? A hybrid of the two ? Any other ideas ?

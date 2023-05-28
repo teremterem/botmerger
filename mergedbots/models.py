@@ -17,6 +17,10 @@ class BotManager(BaseModel, ABC):
     """An abstract factory of everything else in this library."""
 
     @abstractmethod
+    def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
+        """Find a bot by its handle and fulfill the request using that bot."""
+
+    @abstractmethod
     def create_bot(self, handle: str, name: str = None, **kwargs) -> "MergedBot":
         """Create a merged bot."""
 
@@ -82,16 +86,16 @@ class MergedBot(MergedParticipant):
 
     handle: str
     description: str = None
-    fulfillment_func: FulfillmentFunc = None
+    _fulfillment_func: FulfillmentFunc = PrivateAttr(default=None)
 
-    async def fulfill(self, message: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
+    async def fulfill(self, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
         """Fulfill a message."""
-        async for response in self.fulfillment_func(self, message):
+        async for response in self.manager.fulfill(self.handle, request):
             yield response
 
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
-        """A decorator that registers a fulfillment function for the MergedBot."""
-        self.fulfillment_func = fulfillment_func
+        """A decorator that registers a local fulfillment function for this MergedBot."""
+        self._fulfillment_func = fulfillment_func
         fulfillment_func.merged_bot = self
         return fulfillment_func
 
@@ -132,6 +136,7 @@ class MergedMessage(MergedObject):
 
     def get_full_conversion(self, include_invisible_to_bots: bool = False) -> list["MergedMessage"]:
         """Get the full conversation that this message is a part of."""
+        raise ValueError("Redo via BotManager")  # TODO
         conversation = []
         msg = self
         while msg:
