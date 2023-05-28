@@ -44,7 +44,7 @@ class MergedBotDiscord(BaseModel):
                 new_conversation = prefix_command
                 message_visible_to_bots = not prefix_command  # make the prefix command invisible to bots
 
-                user_message = self.bot.manager.new_message_from_originator(
+                user_message = self.bot.manager.create_originator_message(
                     channel_type="discord",
                     # TODO read about discord_message.channel.id... is it unique across all servers ?
                     channel_id=discord_message.channel.id,

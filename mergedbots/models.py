@@ -31,7 +31,7 @@ class BotManager(BaseModel, ABC):
         """Find or create a user."""
 
     @abstractmethod
-    def new_message_from_originator(  # pylint: disable=too-many-arguments
+    def create_originator_message(  # pylint: disable=too-many-arguments
         self,
         channel_type: str,
         channel_id: Any,
@@ -105,10 +105,15 @@ class MergedUser(MergedParticipant):
 class MergedMessage(MergedObject):
     """A message that can be sent by a bot or a user."""
 
+    # TODO convert these two fields into a model of their own ?
+    channel_type: str
+    channel_id: Any
+
     sender: MergedParticipant
     content: str
-    is_still_typing: bool  # TODO move this out into some sort of wrapper
     is_visible_to_bots: bool
+
+    is_still_typing: bool  # TODO move this out into some sort of wrapper
 
     originator: MergedParticipant
     previous_msg: "MergedMessage | None"

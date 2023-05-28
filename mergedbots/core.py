@@ -57,7 +57,7 @@ class BotManagerBase(BotManager):
         self._register_object(key, user)
         return user
 
-    def new_message_from_originator(  # pylint: disable=too-many-arguments
+    def create_originator_message(  # pylint: disable=too-many-arguments
         self,
         channel_type: str,
         channel_id: Any,
@@ -68,8 +68,8 @@ class BotManagerBase(BotManager):
         **kwargs,
     ) -> MergedMessage:
         """
-        Create a new message from the conversation originator. The originator is typically a human user, but in
-        certain scenarios it can also be another bot.
+        Create a new message from the conversation originator. The originator is typically a user, but it can also be
+        a bot (which, for example, is trying to talk to another bot).
         """
         conv_tail_key = self._generate_conversation_tail_key(
             channel_type=channel_type,
@@ -80,13 +80,15 @@ class BotManagerBase(BotManager):
 
         message = MergedMessage(
             manager=self,
-            previous_msg=previous_msg,
-            in_fulfillment_of=None,
+            channel_type=channel_type,
+            channel_id=channel_id,
             sender=originator,
             content=content,
-            is_still_typing=False,  # TODO use a wrapper object for this
             is_visible_to_bots=is_visible_to_bots,
+            is_still_typing=False,  # TODO use a wrapper object for this
             originator=originator,
+            previous_msg=previous_msg,
+            in_fulfillment_of=None,
             **kwargs,
         )
         self._register_merged_object(message)
@@ -160,3 +162,6 @@ class InMemoryBotManager(BotManagerBase):
     def _get_object(self, key: ObjectKey) -> Any | None:
         """Get an object by its key."""
         return self._objects.get(key)
+
+
+# TODO RedisBotManager ? SQLAlchemyBotManager ? A hybrid of the two ? Any other ideas ?
