@@ -8,9 +8,9 @@ from typing import Any, AsyncGenerator
 import discord
 from pydantic import BaseModel, PrivateAttr
 
-from ..errors import ErrorWrapper
-from ..models import MergedUser, MergedMessage, MergedBot
-from ..utils import format_error_with_full_tb, get_text_chunks
+from mergedbots.core import MergedBot, MergedMessage, MergedUser
+from mergedbots.errors import ErrorWrapper
+from mergedbots.utils import get_text_chunks, format_error_with_full_tb
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,6 @@ class MergedBotDiscord(BaseModel):
 
     bot: MergedBot
 
-    # TODO turn these dicts into InMemoryDiscordBackend vs RedisDiscordBackend
     _channel_conv_tails: dict[int, MergedMessage | None] = PrivateAttr(default_factory=dict)
     _users: dict[int, MergedUser] = PrivateAttr(default_factory=dict)
 

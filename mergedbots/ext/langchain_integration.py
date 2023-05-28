@@ -7,8 +7,8 @@ from typing import AsyncGenerator, Coroutine
 
 from langchain.callbacks.base import AsyncCallbackHandler
 
-from ..errors import ErrorWrapper
-from ..models import MergedBot, MergedMessage
+from mergedbots.core import MergedBot, MergedMessage
+from mergedbots.errors import ErrorWrapper
 
 
 class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disable=abstract-method
@@ -17,7 +17,7 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
     """
 
     # TODO move all the heavy lifting (writing to StringIO and paragraph splitting) from on_llm_new_token() and
-    #  on_llm_end() to stream_from_coroutine() ? (check out AsyncIteratorCallbackHandler for inspiration)
+    #  on_llm_end() to stream_from_coroutine() ? (check out LangChain's AsyncIteratorCallbackHandler for inspiration)
 
     def __init__(self, bot: MergedBot, message: MergedMessage, verbose: bool = False) -> None:
         self._bot = bot

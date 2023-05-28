@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, AsyncGenerator
 
 from pydantic import PrivateAttr
 
-from ..models import MergedBot, MergedMessage, MergedObject, MergedParticipant
+from mergedbots.core import MergedBot, MergedMessage, MergedObject, MergedParticipant
 
 SessionFulfillmentFunc = Callable[["NonEventBasedMergedBot", "NonEventBasedChatSession"], Awaitable[None]]
 
