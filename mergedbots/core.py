@@ -27,7 +27,7 @@ class BotManagerBase(BotManager):
 
         if not name:
             name = handle
-        bot = MergedBot(uuid=uuid4(), bot_manager=self, handle=handle, name=name, **kwargs)
+        bot = MergedBot(manager=self, uuid=uuid4(), handle=handle, name=name, **kwargs)
 
         self._register_bot(bot)
         return bot
@@ -53,7 +53,7 @@ class BotManagerBase(BotManager):
         if user:
             return user
 
-        user = MergedUser(uuid=uuid4(), bot_manager=self, name=user_display_name, **kwargs)
+        user = MergedUser(manager=self, uuid=uuid4(), name=user_display_name, **kwargs)
         self._register_merged_object(user)
         self._register_object(key, user)
         return user
@@ -80,8 +80,8 @@ class BotManagerBase(BotManager):
         self._assert_correct_obj_type_or_none(previous_msg, MergedMessage, conv_tail_key)
 
         message = MergedMessage(
+            manager=self,
             uuid=uuid4(),
-            bot_manager=self,
             previous_msg=previous_msg,
             in_fulfillment_of=None,
             sender=originator,

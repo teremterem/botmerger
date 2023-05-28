@@ -7,7 +7,7 @@ from typing import Callable, AsyncGenerator
 
 from pydantic import BaseModel, PrivateAttr, UUID4, Field
 
-# TODO freeze all the MergedObjects after they are created (including their contents)
+# TODO recursively freeze all the MergedObject instances together with their contents after they are created
 
 FulfillmentFunc = Callable[["MergedBot", "MergedMessage"], AsyncGenerator["MergedMessage", None]]
 
@@ -49,8 +49,8 @@ class BotManager(BaseModel, ABC):
 class MergedObject(BaseModel):
     """Base class for all MergedBots models."""
 
-    uuid: UUID4
-    bot_manager: "BotManager"
+    manager: BotManager
+    uuid: UUID4  # TODO auto-generate this ? how to prevent library consumers from direct instantiations, thought ?
     custom_fields: dict[str, Any] = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:

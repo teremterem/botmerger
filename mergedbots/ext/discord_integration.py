@@ -32,7 +32,7 @@ class MergedBotDiscord(BaseModel):
                 return
 
             try:
-                merged_user = self.bot.bot_manager.find_or_create_user(
+                merged_user = self.bot.manager.find_or_create_user(
                     channel_type="discord",
                     channel_specific_id=discord_message.author.id,
                     user_display_name=discord_message.author.name,
@@ -44,7 +44,7 @@ class MergedBotDiscord(BaseModel):
                 new_conversation = prefix_command
                 message_visible_to_bots = not prefix_command  # make the prefix command invisible to bots
 
-                user_message = self.bot.bot_manager.new_message_from_originator(
+                user_message = self.bot.manager.new_message_from_originator(
                     channel_type="discord",
                     # TODO read about discord_message.channel.id... is it unique across all servers ?
                     channel_id=discord_message.channel.id,
