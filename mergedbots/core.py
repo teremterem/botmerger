@@ -2,7 +2,6 @@
 """BotManager implementations."""
 from abc import abstractmethod
 from typing import Any
-from uuid import uuid4
 
 from pydantic import PrivateAttr, UUID4
 
@@ -27,7 +26,7 @@ class BotManagerBase(BotManager):
 
         if not name:
             name = handle
-        bot = MergedBot(manager=self, uuid=uuid4(), handle=handle, name=name, **kwargs)
+        bot = MergedBot(manager=self, handle=handle, name=name, **kwargs)
 
         self._register_bot(bot)
         return bot
@@ -53,7 +52,7 @@ class BotManagerBase(BotManager):
         if user:
             return user
 
-        user = MergedUser(manager=self, uuid=uuid4(), name=user_display_name, **kwargs)
+        user = MergedUser(manager=self, name=user_display_name, **kwargs)
         self._register_merged_object(user)
         self._register_object(key, user)
         return user
@@ -81,7 +80,6 @@ class BotManagerBase(BotManager):
 
         message = MergedMessage(
             manager=self,
-            uuid=uuid4(),
             previous_msg=previous_msg,
             in_fulfillment_of=None,
             sender=originator,

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any
 from typing import Callable, AsyncGenerator
+from uuid import uuid4
 
 from pydantic import BaseModel, PrivateAttr, UUID4, Field
 
@@ -49,8 +50,10 @@ class BotManager(BaseModel, ABC):
 class MergedObject(BaseModel):
     """Base class for all MergedBots models."""
 
+    # TODO how to prevent library consumers from instantiating these models directly ?
+
     manager: BotManager
-    uuid: UUID4  # TODO auto-generate this ? how to prevent library consumers from direct instantiations, thought ?
+    uuid: UUID4 = Field(default_factory=uuid4)
     custom_fields: dict[str, Any] = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
