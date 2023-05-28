@@ -13,7 +13,7 @@ from mergedbots.models import MergedParticipant, MergedUser, MergedBot, MergedMe
 ObjectKey = Any | tuple[Any, ...]
 
 
-class AbstractBotManager(BotManager):
+class BotManagerBase(BotManager):
     """
     An abstract factory of everything else in this library. This class implements the common functionality of all
     concrete BotManager implementations.
@@ -168,7 +168,7 @@ class AbstractBotManager(BotManager):
             )
 
 
-class InMemoryBotManager(AbstractBotManager):
+class InMemoryBotManager(BotManagerBase):
     """An in-memory object manager."""
 
     _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
