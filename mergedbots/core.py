@@ -1,6 +1,7 @@
 # pylint: disable=no-name-in-module
 """BotManager implementations."""
 import asyncio
+import logging
 from abc import abstractmethod
 from typing import Any, AsyncGenerator
 
@@ -12,6 +13,8 @@ from mergedbots.models import MergedParticipant, MergedUser, MergedBot, MergedMe
 
 ObjectKey = Any | tuple[Any, ...]
 
+logger = logging.getLogger(__name__)
+
 
 class BotManagerBase(BotManager):
     """
@@ -21,9 +24,26 @@ class BotManagerBase(BotManager):
 
     # TODO think about thread-safety ?
 
-    async def fulfill(self, bot_handle: str, request: MergedMessage) -> AsyncGenerator[MergedMessage, None]:
-        """Find a bot by its handle and fulfill a request using that bot."""
-        bot = await self.find_bot(bot_handle)
+    async def fulfill(
+        self, bot_handle: str, request: MergedMessage, fallback_bot_handle: str = None
+    ) -> AsyncGenerator["MergedMessage", None]:
+        """
+        Find a bot by its handle and fulfill a request using that bot. If the bot is not found and
+        `fallback_bot_handle` is provided, then the fallback bot is used instead. If the fallback bot is not found
+        either, then `BotNotFoundError` is raised.
+        """
+        try:
+            bot = await self.find_bot(bot_handle)
+        except BotNotFoundError as exc1:
+            if not fallback_bot_handle:
+                raise exc1
+
+            logger.info("bot %r not found, falling back to %r", bot_handle, fallback_bot_handle)
+            try:
+                bot = await self.find_bot(fallback_bot_handle)
+            except BotNotFoundError as exc2:
+                raise exc2 from exc1
+
         # TODO retrieve bot responses from cache if this particular bot already fulfilled this particular request
         # noinspection PyProtectedMember
         async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access

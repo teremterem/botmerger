@@ -19,8 +19,14 @@ class BotManager(BaseModel, ABC):
     """An abstract factory of everything else in this library."""
 
     @abstractmethod
-    async def fulfill(self, bot_handle: str, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
-        """Find a bot by its handle and fulfill a request using that bot."""
+    async def fulfill(
+        self, bot_handle: str, request: "MergedMessage", fallback_bot_handle: str = None
+    ) -> AsyncGenerator["MergedMessage", None]:
+        """
+        Find a bot by its handle and fulfill a request using that bot. If the bot is not found and
+        `fallback_bot_handle` is provided, then the fallback bot is used instead. If the fallback bot is not found
+        either, then `BotNotFoundError` is raised.
+        """
 
     @abstractmethod
     def create_bot(self, handle: str, name: str = None, **kwargs) -> "MergedBot":
