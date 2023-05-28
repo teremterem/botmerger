@@ -6,7 +6,6 @@ import threading
 from typing import AsyncGenerator, Coroutine
 
 from langchain.callbacks.base import AsyncCallbackHandler
-
 from mergedbots.errors import ErrorWrapper
 from mergedbots.models import MergedBot, MergedMessage
 
@@ -51,7 +50,7 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
             yield msg
 
-            if not msg.is_still_typing:
+            if not msg.is_still_typing:  # TODO rely on a sentinel object instead
                 break
 
     async def on_llm_new_token(self, token: str, **kwargs) -> None:
