@@ -13,9 +13,14 @@ def format_error_with_full_tb(error: BaseException) -> str:
     return "".join(traceback.format_exception(type(error), error, error.__traceback__))
 
 
-def generate_bot_key(handle: str) -> tuple[str, str]:
+def generate_merged_bot_key(handle: str) -> tuple[str, str]:
     """Generate a key for a bot."""
     return "bot_handle", handle
+
+
+def generate_merged_user_key(channel_type: str, channel_specific_id: Any) -> tuple[str, str, str]:
+    """Generate a key for a user."""
+    return "user_id", channel_type, channel_specific_id
 
 
 def assert_correct_obj_type_or_none(obj: Any, expected_type: type, key: Any) -> None:

@@ -8,7 +8,7 @@ from typing import Any, AsyncGenerator
 import discord
 from pydantic import BaseModel, PrivateAttr
 
-from mergedbots.core import MergedBot, MergedMessage, MergedUser
+from mergedbots.core import MergedBot, MergedMessage
 from mergedbots.errors import ErrorWrapper
 from mergedbots.utils import get_text_chunks, format_error_with_full_tb
 
@@ -23,7 +23,6 @@ class MergedBotDiscord(BaseModel):
     bot: MergedBot
 
     _channel_conv_tails: dict[int, MergedMessage | None] = PrivateAttr(default_factory=dict)
-    _users: dict[int, MergedUser] = PrivateAttr(default_factory=dict)
 
     def attach_discord_client(self, discord_client: discord.Client) -> None:
         """Attach a Discord client to a merged bot by its handle."""
@@ -35,10 +34,11 @@ class MergedBotDiscord(BaseModel):
                 return
 
             try:
-                merged_user = self._users.get(discord_message.author.id)
-                if not merged_user:
-                    merged_user = MergedUser(name=discord_message.author.name)
-                    self._users[discord_message.author.id] = merged_user
+                merged_user = self.bot.bot_manager.find_or_create_user(
+                    channel_type="discord",
+                    channel_specific_id=discord_message.author.id,
+                    user_display_name=discord_message.author.name,
+                )
 
                 message_visible_to_bots = True
                 if discord_message.content.startswith("!"):

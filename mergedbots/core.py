@@ -9,7 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, PrivateAttr, UUID4, Field
 
 from mergedbots.errors import BotHandleTakenError, BotNotFoundError
-from mergedbots.utils import generate_bot_key, assert_correct_obj_type_or_none
+from mergedbots.utils import assert_correct_obj_type_or_none, generate_merged_bot_key, generate_merged_user_key
 
 # TODO find a way to break this module down into submodules while avoiding circular imports
 
@@ -40,14 +40,31 @@ class ObjectManager(ABC, BaseModel):
     def register_bot(self, bot: "MergedBot") -> None:
         """Register a bot."""
         self.register_merged_object(bot)
-        self.register_object(generate_bot_key(bot.handle), bot)
+        self.register_object(generate_merged_bot_key(bot.handle), bot)
 
     def get_bot(self, handle: str) -> "MergedBot | None":
         """Get a bot by its handle."""
-        key = generate_bot_key(handle)
+        key = generate_merged_bot_key(handle)
         obj = self.get_object(key)
         assert_correct_obj_type_or_none(obj, MergedBot, key)
         return obj
+
+    def find_or_create_user(self, channel_type: str, channel_specific_id: Any, user_display_name: str) -> "MergedUser":
+        """Find or create a user."""
+        key = generate_merged_user_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
+        user = self.get_object(key)
+        assert_correct_obj_type_or_none(user, MergedUser, key)
+        if user:
+            return user
+
+        user = MergedUser(
+            uuid=uuid4(),
+            bot_manager=self,
+            name=user_display_name,
+        )
+        self.register_merged_object(user)
+        self.register_object(key, user)
+        return user
 
 
 class InMemoryObjectManager(ObjectManager):
@@ -88,7 +105,13 @@ class BotManager(BaseModel):
             raise BotNotFoundError(f"bot with handle {handle!r} does not exist")
         return bot
 
-    # def create_user(self, channel_type: str, channel_specific_id: Any, name: str) -> MergedUser:
+    def find_or_create_user(self, channel_type: str, channel_specific_id: Any, user_display_name: str) -> "MergedUser":
+        """Find or create a user."""
+        return self.object_manager.find_or_create_user(
+            channel_type=channel_type,
+            channel_specific_id=channel_specific_id,
+            user_display_name=user_display_name,
+        )
 
 
 class MergedObject(BaseModel):
