@@ -62,6 +62,18 @@ class BotManager(BaseModel, ABC):
         certain scenarios it can also be another bot.
         """
 
+    @abstractmethod
+    async def create_bot_response(  # pylint: disable=too-many-arguments
+        self,
+        bot: "MergedBot",
+        in_fulfillment_of: "MergedMessage",
+        content: str,
+        is_still_typing: bool,
+        is_visible_to_bots: bool,
+        **kwargs,
+    ) -> "MergedMessage":
+        """Create a bot response to `in_fulfillment_of` message."""
+
 
 class MergedObject(BaseModel):
     """Base class for all MergedBots models."""

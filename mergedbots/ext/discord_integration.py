@@ -61,8 +61,6 @@ class MergedBotDiscord(BaseModel):
                     for chunk in get_text_chunks(bot_message.content, DISCORD_MSG_LIMIT):
                         await discord_message.channel.send(chunk)
 
-                    self._channel_conv_tails[discord_message.channel.id] = bot_message
-
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 if isinstance(exc, ErrorWrapper):
                     exc = exc.error

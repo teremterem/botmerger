@@ -53,6 +53,7 @@ class MergedMessage(MergedObject):
     previous_msg: "MergedMessage | None"
     in_fulfillment_of: "MergedMessage | None"
 
+    # TODO get rid if these two attributes - this data should be retrieved from the underlying storage
     _responses: list["MergedMessage"] = PrivateAttr(default_factory=list)
     _responses_by_bots: dict[str, list["MergedMessage"]] = PrivateAttr(default_factory=lambda: defaultdict(list))
 
@@ -68,76 +69,70 @@ class MergedMessage(MergedObject):
         """Get the full conversation that up to this message (inclusively)."""
         return await self.manager.get_full_conversion(self, include_invisible_to_bots=include_invisible_to_bots)
 
-    def bot_response(
+    async def bot_response(
         self,
         bot: MergedBot,
         content: str,
         is_still_typing: bool,
         is_visible_to_bots: bool,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a bot response to this message."""
-        previous_msg = self._responses[-1] if self._responses else self
-        response_msg = MergedMessage(
-            previous_msg=previous_msg,
+        return await self.manager.create_bot_response(
+            bot=bot,
             in_fulfillment_of=self,
-            sender=bot,
             content=content,
             is_still_typing=is_still_typing,
             is_visible_to_bots=is_visible_to_bots,
-            originator=self.originator,
+            **kwargs,
         )
-        self._responses.append(response_msg)
-        # TODO what if message processing failed and bot response list is not complete ?
-        #  we need a flag to indicate that the bot response list is complete
-        self._responses_by_bots[bot.handle].append(response_msg)
-        return response_msg
 
-    def service_followup_for_user(
+    async def service_followup_for_user(
         self,
         bot: MergedBot,
         content: str,
     ) -> "MergedMessage":
         """Create a service followup for the user."""
-        return self.bot_response(
+        return await self.bot_response(
             bot=bot,
             content=content,
             is_still_typing=True,  # it's not the final bot response, more messages are expected
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
         )
 
-    def service_followup_as_final_response(
+    async def service_followup_as_final_response(
         self,
         bot: MergedBot,
         content: str,
     ) -> "MergedMessage":
         """Create a service followup as the final response to the user."""
-        return self.bot_response(
+        return await self.bot_response(
             bot=bot,
             content=content,
             is_still_typing=False,
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
         )
 
-    def interim_bot_response(
+    async def interim_bot_response(
         self,
         bot: MergedBot,
         content: str,
     ) -> "MergedMessage":
         """Create an interim bot response to this message (which means there will be more responses)."""
-        return self.bot_response(
+        return await self.bot_response(
             bot=bot,
             content=content,
             is_still_typing=True,  # there will be more messages
             is_visible_to_bots=True,
         )
 
-    def final_bot_response(
+    async def final_bot_response(
         self,
         bot: MergedBot,
         content: str,
     ) -> "MergedMessage":
         """Create a final bot response to this message."""
-        return self.bot_response(
+        return await self.bot_response(
             bot=bot,
             content=content,
             is_still_typing=False,

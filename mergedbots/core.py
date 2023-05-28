@@ -24,6 +24,7 @@ class BotManagerBase(BotManager):
     async def fulfill(self, bot_handle: str, request: MergedMessage) -> AsyncGenerator[MergedMessage, None]:
         """Find a bot by its handle and fulfill a request using that bot."""
         bot = await self.find_bot(bot_handle)
+        # TODO retrieve bot responses from cache if this particular bot already fulfilled this particular request
         # noinspection PyProtectedMember
         async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access
             yield response
@@ -89,29 +90,53 @@ class BotManagerBase(BotManager):
         Create a new message from the conversation originator. The originator is typically a user, but it can also be
         a bot (which, for example, is trying to talk to another bot).
         """
-        conv_tail_key = self._generate_conversation_tail_key(
+        return await self._create_next_message(
             channel_type=channel_type,
             channel_id=channel_id,
-        )
-        previous_msg = None if new_conversation else await self._get_object(conv_tail_key)
-        self._assert_correct_obj_type_or_none(previous_msg, MergedMessage, conv_tail_key)
-
-        message = MergedMessage(
-            manager=self,
-            channel_type=channel_type,
-            channel_id=channel_id,
+            new_conversation=new_conversation,
             sender=originator,
             content=content,
             is_visible_to_bots=is_visible_to_bots,
             is_still_typing=False,  # TODO use a wrapper object for this
             originator=originator,
-            previous_msg=previous_msg,
             in_fulfillment_of=None,
             **kwargs,
         )
-        await self._register_merged_object(message)
-        await self._register_object(conv_tail_key, message)  # save the tail of the conversation
-        return message
+
+    # noinspection PyProtectedMember
+    async def create_bot_response(  # pylint: disable=too-many-arguments
+        self,
+        bot: MergedBot,
+        in_fulfillment_of: MergedMessage,
+        content: str,
+        is_still_typing: bool,
+        is_visible_to_bots: bool,
+        **kwargs,
+    ) -> "MergedMessage":
+        """Create a bot response to `in_fulfillment_of` message."""
+        response = await self._create_next_message(
+            channel_type=in_fulfillment_of.channel_type,
+            channel_id=in_fulfillment_of.channel_id,
+            in_fulfillment_of=in_fulfillment_of,
+            sender=bot,
+            content=content,
+            is_still_typing=is_still_typing,
+            is_visible_to_bots=is_visible_to_bots,
+            originator=in_fulfillment_of.originator,
+            **kwargs,
+        )
+
+        # NOTE: This is a temporary implementation - MergedMessage will not support `_responses` and
+        # `_responses_by_bots` attributes in the future (this kind of state data is meant to be retrieved from the
+        # underlying storage dynamically).
+
+        # pylint: disable=protected-access
+        in_fulfillment_of._responses.append(response)
+        # TODO what if message processing failed and bot response list is not complete ?
+        #  we need a flag to indicate that the bot response list is complete
+        in_fulfillment_of._responses_by_bots[bot.handle].append(response)
+
+        return response
 
     @abstractmethod
     async def _register_object(self, key: ObjectKey, value: Any) -> None:
@@ -142,6 +167,35 @@ class BotManagerBase(BotManager):
         bot = await self._get_object(key)
         self._assert_correct_obj_type_or_none(bot, MergedBot, key)
         return bot
+
+    async def _create_next_message(
+        self,
+        channel_type: str,
+        channel_id: Any,
+        new_conversation: bool = False,
+        **kwargs,
+    ) -> MergedMessage:
+        """
+        Create a new message in a conversation (and update the "conversation tail" reference for the correspondent
+        for the correspondent channel).
+        """
+        conv_tail_key = self._generate_conversation_tail_key(
+            channel_type=channel_type,
+            channel_id=channel_id,
+        )
+        previous_msg = None if new_conversation else await self._get_object(conv_tail_key)
+        self._assert_correct_obj_type_or_none(previous_msg, MergedMessage, conv_tail_key)
+
+        message = MergedMessage(
+            manager=self,
+            channel_type=channel_type,
+            channel_id=channel_id,
+            previous_msg=previous_msg,
+            **kwargs,
+        )
+        await self._register_merged_object(message)
+        await self._register_object(conv_tail_key, message)  # save the tail of the conversation
+        return message
 
     # noinspection PyMethodMayBeStatic
     def _generate_merged_bot_key(self, handle: str) -> tuple[str, str]:
