@@ -2,10 +2,9 @@
 from mergedbots.core import (
     BotManager,
     FulfillmentFunc,
-    InMemoryObjectManager,
+    InMemoryBotManager,
     MergedBot,
     MergedMessage,
-    ObjectManager,
     MergedUser,
 )
 from mergedbots.errors import ErrorWrapper, MergedBotsError
@@ -14,10 +13,9 @@ __all__ = [
     "BotManager",
     "ErrorWrapper",
     "FulfillmentFunc",
-    "InMemoryObjectManager",
+    "InMemoryBotManager",
     "MergedBot",
     "MergedBotsError",
     "MergedMessage",
-    "ObjectManager",
     "MergedUser",
 ]

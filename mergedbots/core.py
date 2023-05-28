@@ -9,109 +9,161 @@ from uuid import uuid4
 from pydantic import BaseModel, PrivateAttr, UUID4, Field
 
 from mergedbots.errors import BotHandleTakenError, BotNotFoundError
-from mergedbots.utils import assert_correct_obj_type_or_none, generate_merged_bot_key, generate_merged_user_key
 
 # TODO find a way to break this module down into submodules while avoiding circular imports
+# TODO freeze all the MergedObjects after they are created (including their contents)
 
 FulfillmentFunc = Callable[["MergedBot", "MergedMessage"], AsyncGenerator["MergedMessage", None]]
+ObjectKey = Any | tuple[Any, ...]
 
 
-class ObjectManager(ABC, BaseModel):
-    """An abstract object manager."""
-
-    @abstractmethod
-    def register_object(self, key: Any, value: Any) -> None:
-        """Register an object."""
-
-    @abstractmethod
-    def get_object(self, key: Any) -> Any | None:
-        """Get an object by its key."""
-
-    def register_merged_object(self, obj: "MergedObject") -> None:
-        """Register a merged object."""
-        self.register_object(obj.uuid, obj)
-
-    def get_merged_object(self, uuid: UUID4) -> "MergedObject | None":
-        """Get a merged object by its uuid."""
-        obj = self.get_object(uuid)
-        assert_correct_obj_type_or_none(obj, MergedObject, uuid)
-        return obj
-
-    def register_bot(self, bot: "MergedBot") -> None:
-        """Register a bot."""
-        self.register_merged_object(bot)
-        self.register_object(generate_merged_bot_key(bot.handle), bot)
-
-    def get_bot(self, handle: str) -> "MergedBot | None":
-        """Get a bot by its handle."""
-        key = generate_merged_bot_key(handle)
-        obj = self.get_object(key)
-        assert_correct_obj_type_or_none(obj, MergedBot, key)
-        return obj
-
-    def find_or_create_user(self, channel_type: str, channel_specific_id: Any, user_display_name: str) -> "MergedUser":
-        """Find or create a user."""
-        key = generate_merged_user_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
-        user = self.get_object(key)
-        assert_correct_obj_type_or_none(user, MergedUser, key)
-        if user:
-            return user
-
-        user = MergedUser(
-            uuid=uuid4(),
-            bot_manager=self,
-            name=user_display_name,
-        )
-        self.register_merged_object(user)
-        self.register_object(key, user)
-        return user
-
-
-class InMemoryObjectManager(ObjectManager):
-    """An in-memory object manager."""
-
-    _objects: dict[Any, Any] = PrivateAttr(default_factory=dict)
-
-    def register_object(self, key: Any, value: Any) -> None:
-        """Register an object."""
-        self._objects[key] = value
-
-    def get_object(self, key: Any) -> Any | None:
-        """Get an object by its key."""
-        return self._objects.get(key)
-
-
-class BotManager(BaseModel):
+class BotManager(ABC, BaseModel):
     """An abstract factory of everything else in this library."""
 
-    object_manager: ObjectManager = Field(default_factory=InMemoryObjectManager)
+    # TODO think about thread-safety ?
 
     def create_bot(self, handle: str, name: str = None, **kwargs) -> "MergedBot":
         """Create a merged bot."""
-        if self.object_manager.get_bot(handle):
+        if self._get_bot(handle):
             raise BotHandleTakenError(f"bot with handle {handle!r} is already registered")
 
         if not name:
             name = handle
         bot = MergedBot(uuid=uuid4(), bot_manager=self, handle=handle, name=name, **kwargs)
 
-        self.object_manager.register_bot(bot)
+        self._register_bot(bot)
         return bot
 
     def find_bot(self, handle: str) -> "MergedBot":
         """Fetch a bot by its handle."""
-        bot = self.object_manager.get_bot(handle)
+        bot = self._get_bot(handle)
         if not bot:
             raise BotNotFoundError(f"bot with handle {handle!r} does not exist")
         return bot
 
-    def find_or_create_user(self, channel_type: str, channel_specific_id: Any, user_display_name: str) -> "MergedUser":
+    def find_or_create_user(
+        self,
+        channel_type: str,
+        channel_specific_id: Any,
+        user_display_name: str,
+        **kwargs,
+    ) -> "MergedUser":
         """Find or create a user."""
-        return self.object_manager.find_or_create_user(
+        key = self._generate_merged_user_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
+        user = self._get_object(key)
+        self._assert_correct_obj_type_or_none(user, MergedUser, key)
+        if user:
+            return user
+
+        user = MergedUser(uuid=uuid4(), bot_manager=self, name=user_display_name, **kwargs)
+        self._register_merged_object(user)
+        self._register_object(key, user)
+        return user
+
+    def new_message_from_originator(  # pylint: disable=too-many-arguments
+        self,
+        channel_type: str,
+        channel_id: Any,
+        originator: "MergedParticipant",
+        content: str,
+        is_visible_to_bots: bool = True,
+        new_conversation: bool = False,
+        **kwargs,
+    ) -> "MergedMessage":
+        """
+        Create a new message from the conversation originator. The originator is typically a human user, but in
+        certain scenarios it can also be another bot.
+        """
+        conv_tail_key = self._generate_conversation_tail_key(
             channel_type=channel_type,
-            channel_specific_id=channel_specific_id,
-            user_display_name=user_display_name,
+            channel_id=channel_id,
         )
+        previous_msg = None if new_conversation else self._get_object(conv_tail_key)
+        self._assert_correct_obj_type_or_none(previous_msg, MergedMessage, conv_tail_key)
+
+        message = MergedMessage(
+            uuid=uuid4(),
+            bot_manager=self,
+            previous_msg=previous_msg,
+            in_fulfillment_of=None,
+            sender=originator,
+            content=content,
+            is_still_typing=False,  # TODO use a wrapper object for this
+            is_visible_to_bots=is_visible_to_bots,
+            originator=originator,
+            **kwargs,
+        )
+        self._register_merged_object(message)
+        self._register_object(conv_tail_key, message)  # save the tail of the conversation
+        return message
+
+    @abstractmethod
+    def _register_object(self, key: ObjectKey, value: Any) -> None:
+        """Register an object."""
+
+    @abstractmethod
+    def _get_object(self, key: ObjectKey) -> Any | None:
+        """Get an object by its key."""
+
+    def _register_merged_object(self, obj: "MergedObject") -> None:
+        """Register a merged object."""
+        self._register_object(obj.uuid, obj)
+
+    def _get_merged_object(self, uuid: UUID4) -> "MergedObject | None":
+        """Get a merged object by its uuid."""
+        obj = self._get_object(uuid)
+        self._assert_correct_obj_type_or_none(obj, MergedObject, uuid)
+        return obj
+
+    def _register_bot(self, bot: "MergedBot") -> None:
+        """Register a bot."""
+        self._register_merged_object(bot)
+        self._register_object(self._generate_merged_bot_key(bot.handle), bot)
+
+    def _get_bot(self, handle: str) -> "MergedBot | None":
+        """Get a bot by its handle."""
+        key = self._generate_merged_bot_key(handle)
+        bot = self._get_object(key)
+        self._assert_correct_obj_type_or_none(bot, MergedBot, key)
+        return bot
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_merged_bot_key(self, handle: str) -> tuple[str, str]:
+        """Generate a key for a bot."""
+        return "bot_by_handle", handle
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_merged_user_key(self, channel_type: str, channel_specific_id: Any) -> tuple[str, str, str]:
+        """Generate a key for a user."""
+        return "user_by_channel", channel_type, channel_specific_id
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_conversation_tail_key(self, channel_type: str, channel_id: Any) -> tuple[str, str, str]:
+        """Generate a key for a conversation tail."""
+        return "conv_tail_by_channel", channel_type, channel_id
+
+    # noinspection PyMethodMayBeStatic
+    def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: type, key: Any) -> None:
+        """Assert that the object is of the expected type or None."""
+        if obj and not isinstance(obj, expected_type):
+            raise TypeError(
+                f"wrong type of object by the key {key!r}: "
+                f"expected {expected_type.__name__!r}, got {type(obj).__name__!r}",
+            )
+
+
+class InMemoryBotManager(BotManager):
+    """An in-memory object manager."""
+
+    _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
+
+    def _register_object(self, key: ObjectKey, value: Any) -> None:
+        """Register an object."""
+        self._objects[key] = value
+
+    def _get_object(self, key: ObjectKey) -> Any | None:
+        """Get an object by its key."""
+        return self._objects.get(key)
 
 
 class MergedObject(BaseModel):
@@ -119,6 +171,7 @@ class MergedObject(BaseModel):
 
     uuid: UUID4
     bot_manager: BotManager
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
@@ -171,7 +224,7 @@ class MergedMessage(MergedObject):
 
     sender: MergedParticipant
     content: str
-    is_still_typing: bool
+    is_still_typing: bool  # TODO move this out into some sort of wrapper
     is_visible_to_bots: bool
 
     originator: MergedParticipant
