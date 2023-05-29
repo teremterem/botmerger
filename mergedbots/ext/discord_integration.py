@@ -21,54 +21,60 @@ class MergedBotDiscord(BaseModel):
     """Integration of a merged bot with Discord."""
 
     bot: MergedBot
+    discord_client: discord.Client
 
-    def attach_discord_client(self, discord_client: discord.Client) -> None:
-        """Attach a Discord client to a merged bot by its handle."""
+    class Config:
+        """Pydantic config."""
 
-        async def on_message(discord_message: discord.Message) -> None:
-            """Called when a message is sent to a channel (both a user message and a bot message)."""
-            if discord_message.author == discord_client.user:
-                # make sure we are not embarking on an "infinite loop" journey
-                return
+        arbitrary_types_allowed = True
 
-            try:
-                merged_user = await self.bot.manager.find_or_create_user(
-                    channel_type="discord",
-                    channel_specific_id=discord_message.author.id,
-                    user_display_name=discord_message.author.name,
-                )
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        # Attach the Discord client to the MergedBot.
+        self.discord_client.event(self._on_message)
 
-                # any prefix command just starts a new conversation for now
-                # TODO rethink conversation restarts
-                prefix_command = discord_message.content.startswith("!")
-                new_conversation = prefix_command
-                message_visible_to_bots = not prefix_command  # make the prefix command invisible to bots
+    async def _on_message(self, discord_message: discord.Message) -> None:
+        """Called when a message is sent to a channel (both a user message and a bot message)."""
+        if discord_message.author == self.discord_client.user:
+            # make sure we are not embarking on an "infinite loop" journey
+            return
 
-                user_message = await self.bot.manager.create_originator_message(
-                    channel_type="discord",
-                    # TODO read about discord_message.channel.id... is it unique across all servers ?
-                    channel_id=discord_message.channel.id,
-                    originator=merged_user,
-                    content=discord_message.content,
-                    is_visible_to_bots=message_visible_to_bots,
-                    new_conversation=new_conversation,
-                )
+        try:
+            merged_user = await self.bot.manager.find_or_create_user(
+                channel_type="discord",
+                channel_specific_id=discord_message.author.id,
+                user_display_name=discord_message.author.name,
+            )
 
-                async for bot_message in self._fulfill_message_with_typing(
-                    message=user_message,
-                    typing_context_manager=discord_message.channel.typing(),
-                ):
-                    for chunk in get_text_chunks(bot_message.content, DISCORD_MSG_LIMIT):
-                        await discord_message.channel.send(chunk)
+            # any prefix command just starts a new conversation for now
+            # TODO rethink conversation restarts
+            prefix_command = discord_message.content.startswith("!")
+            new_conversation = prefix_command
+            message_visible_to_bots = not prefix_command  # make the prefix command invisible to bots
 
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                if isinstance(exc, ErrorWrapper):
-                    exc = exc.error
-                logger.error("Error while processing a Discord message: %s", exc, exc_info=exc)
-                for chunk in get_text_chunks(format_error_with_full_tb(exc), DISCORD_MSG_LIMIT):
-                    await discord_message.channel.send(f"```\n{chunk}\n```")
+            user_message = await self.bot.manager.create_originator_message(
+                channel_type="discord",
+                # TODO read about discord_message.channel.id... is it unique across all servers ?
+                channel_id=discord_message.channel.id,
+                originator=merged_user,
+                content=discord_message.content,
+                is_visible_to_bots=message_visible_to_bots,
+                new_conversation=new_conversation,
+            )
 
-        discord_client.event(on_message)
+            async for bot_message in self._fulfill_message_with_typing(
+                message=user_message,
+                typing_context_manager=discord_message.channel.typing(),
+            ):
+                for chunk in get_text_chunks(bot_message.content, DISCORD_MSG_LIMIT):
+                    await discord_message.channel.send(chunk)
+
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            if isinstance(exc, ErrorWrapper):
+                exc = exc.error
+            logger.error("Error while processing a Discord message: %s", exc, exc_info=exc)
+            for chunk in get_text_chunks(format_error_with_full_tb(exc), DISCORD_MSG_LIMIT):
+                await discord_message.channel.send(f"```\n{chunk}\n```")
 
     async def _fulfill_message_with_typing(
         self, message: MergedMessage, typing_context_manager: Any

@@ -1,5 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the MergedBots library."""
+import logging
 from collections import defaultdict
 from typing import Any
 from typing import AsyncGenerator
@@ -7,6 +8,8 @@ from typing import AsyncGenerator
 from pydantic import PrivateAttr
 
 from mergedbots.base import MergedObject, MergedParticipant, FulfillmentFunc
+
+logger = logging.getLogger(__name__)
 
 
 class MergedBot(MergedParticipant):
@@ -26,7 +29,11 @@ class MergedBot(MergedParticipant):
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
         """A decorator that registers a local fulfillment function for this MergedBot."""
         self._fulfillment_func = fulfillment_func
-        fulfillment_func.merged_bot = self
+        try:
+            fulfillment_func.merged_bot = self
+        except AttributeError:
+            # the trick with setting `merged_bot` attribute on a function does not work with methods, but that's fine
+            logger.debug("could not set `merged_bot` attribute on %r", fulfillment_func)
         return fulfillment_func
 
 
