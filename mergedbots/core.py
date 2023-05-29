@@ -1,98 +1,262 @@
 # pylint: disable=no-name-in-module
-"""Core logic of MergedBots library."""
-from collections import defaultdict
-from typing import Callable, AsyncGenerator
-from uuid import uuid4
+"""BotManager implementations."""
+import asyncio
+import logging
+from abc import abstractmethod
+from typing import Any, AsyncGenerator
 
-from pydantic import BaseModel, PrivateAttr, Field, UUID4
+from pydantic import PrivateAttr, UUID4
 
-FulfillmentFunc = Callable[["MergedBot", "MergedMessage"], AsyncGenerator["MergedMessage", None]]
+from mergedbots.base import BotManager
+from mergedbots.errors import BotHandleTakenError, BotNotFoundError
+from mergedbots.models import MergedParticipant, MergedUser, MergedBot, MergedMessage, MergedObject
 
+ObjectKey = Any | tuple[Any, ...]
 
-class MergedBase(BaseModel):
-    """Base class for all MergedBots models."""
-
-    # TODO make sure all the objects from this module are only created through an Abstract Factory
-
-    uuid: UUID4 = Field(default_factory=uuid4)
-
-    def __eq__(self, other: object) -> bool:
-        """Check if two models represent the same concept."""
-        if not isinstance(other, MergedBase):
-            return False
-        return self.uuid == other.uuid
-
-    def __hash__(self) -> int:
-        """Get the hash of the model's uuid."""
-        # TODO are we sure we don't want to keep these models non-hashable (pydantic default) ?
-        return hash(self.uuid)
+logger = logging.getLogger(__name__)
 
 
-class MergedParticipant(MergedBase):
-    """A chat participant."""
+class BotManagerBase(BotManager):
+    """
+    An abstract factory of everything else in this library. This class implements the common functionality of all
+    concrete BotManager implementations.
+    """
 
-    name: str
-    is_human: bool
+    # TODO think about thread-safety ?
 
+    async def fulfill(
+        self, bot_handle: str, request: MergedMessage, fallback_bot_handle: str = None
+    ) -> AsyncGenerator["MergedMessage", None]:
+        """
+        Find a bot by its handle and fulfill a request using that bot. If the bot is not found and
+        `fallback_bot_handle` is provided, then the fallback bot is used instead. If the fallback bot is not found
+        either, then `BotNotFoundError` is raised.
+        """
+        try:
+            bot = await self.find_bot(bot_handle)
+        except BotNotFoundError as exc1:
+            if not fallback_bot_handle:
+                raise exc1
 
-class MergedBot(MergedParticipant):
-    """A bot that can interact with other bots."""
+            logger.info("bot %r not found, falling back to %r", bot_handle, fallback_bot_handle)
+            try:
+                bot = await self.find_bot(fallback_bot_handle)
+            except BotNotFoundError as exc2:
+                raise exc2 from exc1
 
-    is_human: bool = False
-
-    handle: str
-    description: str = None
-    fulfillment_func: FulfillmentFunc = None
-
-    def __init__(self, handle, name=None, **kwargs) -> None:
-        if not name:
-            name = handle
-        super().__init__(handle=handle, name=name, **kwargs)
-
-    async def fulfill(self, message: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
-        """Fulfill a message."""
-        async for response in self.fulfillment_func(self, message):
+        # TODO retrieve bot responses from cache if this particular bot already fulfilled this particular request
+        # noinspection PyProtectedMember
+        async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access
             yield response
 
-    def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
-        """A decorator that registers a fulfillment function for the MergedBot."""
-        self.fulfillment_func = fulfillment_func
-        return fulfillment_func
-
-
-class MergedUser(MergedParticipant):
-    """A user that can interact with bots."""
-
-    is_human: bool = True
-
-
-class MergedMessage(MergedBase):
-    """A message that can be sent by a bot or a user."""
-
-    sender: MergedParticipant
-    content: str
-    is_still_typing: bool
-    is_visible_to_bots: bool
-
-    originator: MergedParticipant
-    previous_msg: "MergedMessage | None"
-    in_fulfillment_of: "MergedMessage | None"
-
-    _responses: list["MergedMessage"] = PrivateAttr(default_factory=list)
-    _responses_by_bots: dict[str, list["MergedMessage"]] = PrivateAttr(default_factory=lambda: defaultdict(list))
-
-    @property
-    def is_sent_by_originator(self) -> bool:
+    def create_bot(self, handle: str, name: str = None, **kwargs) -> MergedBot:
         """
-        Check if this message was sent by the originator of the whole interaction. This will most likely be a user,
-        but in some cases may also be another bot (if the interaction is some sort of "inner dialog" between bots).
+        Create a merged bot. This version of bot creation function is meant to be called before event loop is started
+        (for ex. as a decorator to fulfillment functions as they are being defined).
         """
-        return self.sender == self.originator
+        # TODO is this a dirty hack ? find a better way to do this ?
+        # start a temporary event loop and call the async version of this method from there
+        return asyncio.run(self.create_bot_async(handle=handle, name=name, **kwargs))
 
-    def get_full_conversion(self, include_invisible_to_bots: bool = False) -> list["MergedMessage"]:
-        """Get the full conversation that this message is a part of."""
+    async def create_bot_async(self, handle: str, name: str = None, **kwargs) -> MergedBot:
+        """Create a merged bot."""
+        if await self._get_bot(handle):
+            raise BotHandleTakenError(f"bot with handle {handle!r} is already registered")
+
+        if not name:
+            name = handle
+        bot = MergedBot(manager=self, handle=handle, name=name, **kwargs)
+
+        await self._register_bot(bot)
+        return bot
+
+    async def find_bot(self, handle: str) -> MergedBot:
+        """Fetch a bot by its handle."""
+        bot = await self._get_bot(handle)
+        if not bot:
+            raise BotNotFoundError(f"bot with handle {handle!r} does not exist")
+        return bot
+
+    async def find_or_create_user(
+        self,
+        channel_type: str,
+        channel_specific_id: Any,
+        user_display_name: str,
+        **kwargs,
+    ) -> MergedUser:
+        """Find or create a user."""
+        key = self._generate_merged_user_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
+        user = await self._get_object(key)
+        self._assert_correct_obj_type_or_none(user, MergedUser, key)
+        if user:
+            return user
+
+        user = MergedUser(manager=self, name=user_display_name, **kwargs)
+        await self._register_merged_object(user)
+        await self._register_object(key, user)
+        return user
+
+    async def create_originator_message(  # pylint: disable=too-many-arguments
+        self,
+        channel_type: str,
+        channel_id: Any,
+        originator: MergedParticipant,
+        content: str,
+        is_visible_to_bots: bool = True,
+        new_conversation: bool = False,
+        **kwargs,
+    ) -> MergedMessage:
+        """
+        Create a new message from the conversation originator. The originator is typically a user, but it can also be
+        a bot (which, for example, is trying to talk to another bot).
+        """
+        return await self._create_next_message(
+            channel_type=channel_type,
+            channel_id=channel_id,
+            new_conversation=new_conversation,
+            sender=originator,
+            content=content,
+            is_visible_to_bots=is_visible_to_bots,
+            is_still_typing=False,  # TODO use a wrapper object for this
+            originator=originator,
+            in_fulfillment_of=None,
+            **kwargs,
+        )
+
+    # noinspection PyProtectedMember
+    async def create_bot_response(  # pylint: disable=too-many-arguments
+        self,
+        bot: MergedBot,
+        in_fulfillment_of: MergedMessage,
+        content: str,
+        is_still_typing: bool,
+        is_visible_to_bots: bool,
+        **kwargs,
+    ) -> "MergedMessage":
+        """Create a bot response to `in_fulfillment_of` message."""
+        response = await self._create_next_message(
+            channel_type=in_fulfillment_of.channel_type,
+            channel_id=in_fulfillment_of.channel_id,
+            in_fulfillment_of=in_fulfillment_of,
+            sender=bot,
+            content=content,
+            is_still_typing=is_still_typing,
+            is_visible_to_bots=is_visible_to_bots,
+            originator=in_fulfillment_of.originator,
+            **kwargs,
+        )
+
+        # NOTE: This is a temporary implementation - MergedMessage will not support `_responses` and
+        # `_responses_by_bots` attributes in the future (this kind of state data is meant to be retrieved from the
+        # underlying storage dynamically).
+
+        # pylint: disable=protected-access
+        in_fulfillment_of._responses.append(response)
+        # TODO what if message processing failed and bot response list is not complete ?
+        #  we need a flag to indicate that the bot response list is complete
+        in_fulfillment_of._responses_by_bots[bot.handle].append(response)
+
+        return response
+
+    @abstractmethod
+    async def _register_object(self, key: ObjectKey, value: Any) -> None:
+        """Register an object."""
+
+    @abstractmethod
+    async def _get_object(self, key: ObjectKey) -> Any | None:
+        """Get an object by its key."""
+
+    async def _register_merged_object(self, obj: MergedObject) -> None:
+        """Register a merged object."""
+        await self._register_object(obj.uuid, obj)
+
+    async def _get_merged_object(self, uuid: UUID4) -> MergedObject | None:
+        """Get a merged object by its uuid."""
+        obj = await self._get_object(uuid)
+        self._assert_correct_obj_type_or_none(obj, MergedObject, uuid)
+        return obj
+
+    async def _register_bot(self, bot: MergedBot) -> None:
+        """Register a bot."""
+        await self._register_merged_object(bot)
+        await self._register_object(self._generate_merged_bot_key(bot.handle), bot)
+
+    async def _get_bot(self, handle: str) -> MergedBot | None:
+        """Get a bot by its handle."""
+        key = self._generate_merged_bot_key(handle)
+        bot = await self._get_object(key)
+        self._assert_correct_obj_type_or_none(bot, MergedBot, key)
+        return bot
+
+    async def _create_next_message(
+        self,
+        channel_type: str,
+        channel_id: Any,
+        new_conversation: bool = False,
+        **kwargs,
+    ) -> MergedMessage:
+        """
+        Create a new message in a conversation (and update the "conversation tail" reference for the correspondent
+        for the correspondent channel).
+        """
+        conv_tail_key = self._generate_conversation_tail_key(
+            channel_type=channel_type,
+            channel_id=channel_id,
+        )
+        previous_msg = None if new_conversation else await self._get_object(conv_tail_key)
+        self._assert_correct_obj_type_or_none(previous_msg, MergedMessage, conv_tail_key)
+
+        message = MergedMessage(
+            manager=self,
+            channel_type=channel_type,
+            channel_id=channel_id,
+            previous_msg=previous_msg,
+            **kwargs,
+        )
+        await self._register_merged_object(message)
+        await self._register_object(conv_tail_key, message)  # save the tail of the conversation
+        return message
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_merged_bot_key(self, handle: str) -> tuple[str, str]:
+        """Generate a key for a bot."""
+        return "bot_by_handle", handle
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_merged_user_key(self, channel_type: str, channel_specific_id: Any) -> tuple[str, str, str]:
+        """Generate a key for a user."""
+        return "user_by_channel", channel_type, channel_specific_id
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_conversation_tail_key(self, channel_type: str, channel_id: Any) -> tuple[str, str, str]:
+        """Generate a key for a conversation tail."""
+        return "conv_tail_by_channel", channel_type, channel_id
+
+    # noinspection PyMethodMayBeStatic
+    def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: type, key: Any) -> None:
+        """Assert that the object is of the expected type or None."""
+        if obj and not isinstance(obj, expected_type):
+            raise TypeError(
+                f"wrong type of object by the key {key!r}: "
+                f"expected {expected_type.__name__!r}, got {type(obj).__name__!r}",
+            )
+
+
+class InMemoryBotManager(BotManagerBase):
+    """An in-memory object manager."""
+
+    # TODO should in-memory implementation care about eviction of old objects ?
+    _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
+
+    async def get_full_conversion(
+        self, conversation_tail: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> list["MergedMessage"]:
+        """Fetch the full conversation history up to the given message inclusively (`conversation_tail`)."""
+        # NOTE: This is a simplistic implementation. A different approach will be needed in case of `RedisBotManager`,
+        # `RemoteBotManager`, and other future implementations, because in those cases history messages will not be
+        # immediately available via `msg.previous_msg`.
         conversation = []
-        msg = self
+        msg = conversation_tail
         while msg:
             if include_invisible_to_bots or msg.is_visible_to_bots:
                 conversation.append(msg)
@@ -101,78 +265,14 @@ class MergedMessage(MergedBase):
         conversation.reverse()
         return conversation
 
-    def bot_response(
-        self,
-        bot: MergedBot,
-        content: str,
-        is_still_typing: bool,
-        is_visible_to_bots: bool,
-    ) -> "MergedMessage":
-        """Create a bot response to this message."""
-        previous_msg = self._responses[-1] if self._responses else self
-        response_msg = MergedMessage(
-            previous_msg=previous_msg,
-            in_fulfillment_of=self,
-            sender=bot,
-            content=content,
-            is_still_typing=is_still_typing,
-            is_visible_to_bots=is_visible_to_bots,
-            originator=self.originator,
-        )
-        self._responses.append(response_msg)
-        # TODO what if message processing failed and bot response list is not complete ?
-        #  we need a flag to indicate that the bot response list is complete
-        self._responses_by_bots[bot.handle].append(response_msg)
-        return response_msg
+    async def _register_object(self, key: ObjectKey, value: Any) -> None:
+        """Register an object."""
+        self._objects[key] = value
 
-    def service_followup_for_user(
-        self,
-        bot: MergedBot,
-        content: str,
-    ) -> "MergedMessage":
-        """Create a service followup for the user."""
-        return self.bot_response(
-            bot=bot,
-            content=content,
-            is_still_typing=True,  # it's not the final bot response, more messages are expected
-            is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
-        )
+    async def _get_object(self, key: ObjectKey) -> Any | None:
+        """Get an object by its key."""
+        return self._objects.get(key)
 
-    def service_followup_as_final_response(
-        self,
-        bot: MergedBot,
-        content: str,
-    ) -> "MergedMessage":
-        """Create a service followup as the final response to the user."""
-        return self.bot_response(
-            bot=bot,
-            content=content,
-            is_still_typing=False,
-            is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
-        )
 
-    def interim_bot_response(
-        self,
-        bot: MergedBot,
-        content: str,
-    ) -> "MergedMessage":
-        """Create an interim bot response to this message (which means there will be more responses)."""
-        return self.bot_response(
-            bot=bot,
-            content=content,
-            is_still_typing=True,  # there will be more messages
-            is_visible_to_bots=True,
-        )
-
-    def final_bot_response(
-        self,
-        bot: MergedBot,
-        content: str,
-    ) -> "MergedMessage":
-        """Create a final bot response to this message."""
-        return self.bot_response(
-            bot=bot,
-            content=content,
-            is_still_typing=False,
-            is_visible_to_bots=True,
-        )
+# TODO RemoteBotManager for distributed configurations ?
+# TODO RedisBotManager ? SQLAlchemyBotManager ? A hybrid of the two ? Any other ideas ?

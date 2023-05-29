@@ -3,7 +3,7 @@ line-length = 119
 
 [tool.poetry]
 name = "mergedbots"
-version = "0.1.0"
+version = "0.0.1"
 description = ""
 authors = ["Oleksandr Tereshchenko <toporok@gmail.com>"]
 readme = "README.md"

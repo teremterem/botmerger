@@ -6,9 +6,8 @@ import threading
 from typing import AsyncGenerator, Coroutine
 
 from langchain.callbacks.base import AsyncCallbackHandler
-
-from ..core import MergedBot, MergedMessage
-from ..errors import ErrorWrapper
+from mergedbots.errors import ErrorWrapper
+from mergedbots.models import MergedBot, MergedMessage
 
 
 class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disable=abstract-method
@@ -17,7 +16,7 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
     """
 
     # TODO move all the heavy lifting (writing to StringIO and paragraph splitting) from on_llm_new_token() and
-    #  on_llm_end() to stream_from_coroutine() ? (check out AsyncIteratorCallbackHandler for inspiration)
+    #  on_llm_end() to stream_from_coroutine() ? (check out LangChain's AsyncIteratorCallbackHandler for inspiration)
 
     def __init__(self, bot: MergedBot, message: MergedMessage, verbose: bool = False) -> None:
         self._bot = bot
@@ -51,7 +50,7 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
             yield msg
 
-            if not msg.is_still_typing:
+            if not msg.is_still_typing:  # TODO rely on a sentinel object instead
                 break
 
     async def on_llm_new_token(self, token: str, **kwargs) -> None:
@@ -76,8 +75,10 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
             split_idx = text_so_far.rfind("\n\n")
             if split_idx != -1:
-                self._msg_queue.put_nowait(self._message.interim_bot_response(self._bot, text_so_far[:split_idx]))
-                self._str_io = io.StringIO(text_so_far[split_idx + 2:])
+                self._msg_queue.put_nowait(
+                    await self._message.interim_bot_response(self._bot, text_so_far[:split_idx])
+                )
+                self._str_io = io.StringIO(text_so_far[split_idx + 2 :])
 
     async def on_llm_end(self, *args, **kwargs) -> None:  # pylint: disable=unused-argument
         if self._verbose:
@@ -86,5 +87,5 @@ class LangChainParagraphStreamingCallback(AsyncCallbackHandler):  # pylint: disa
 
         with self._threading_lock:
             # emitting the last paragraph
-            self._msg_queue.put_nowait(self._message.final_bot_response(self._bot, self._str_io.getvalue()))
+            self._msg_queue.put_nowait(await self._message.final_bot_response(self._bot, self._str_io.getvalue()))
             self._str_io = None  # make this callback object unusable

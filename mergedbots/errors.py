@@ -5,6 +5,14 @@ class MergedBotsError(Exception):
     """Base class for all MergedBots errors."""
 
 
+class BotHandleTakenError(MergedBotsError):
+    """Raised when a bot with the same handle already exists."""
+
+
+class BotNotFoundError(MergedBotsError):
+    """Raised when a bot with the given handle does not exist."""
+
+
 class ErrorWrapper(MergedBotsError):
     """This wrapper is used to contain errors that occurred outside main coroutine."""
 
