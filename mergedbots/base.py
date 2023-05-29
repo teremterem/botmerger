@@ -86,6 +86,13 @@ class MergedObject(BaseModel):
 
     # TODO how to prevent library consumers from instantiating these models directly ?
 
+    class Config(BaseModel.Config):
+        """Pydantic config."""
+
+        # https://stackoverflow.com/a/72675163
+        # TODO how not to forget to subclass this Config in child models should we need to define Config there too ?
+        copy_on_model_validation = "none"
+
     manager: BotManager
     uuid: UUID4 = Field(default_factory=uuid4)
     custom_fields: dict[str, Any] = Field(default_factory=dict)

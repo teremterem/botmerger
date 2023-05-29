@@ -245,6 +245,7 @@ class BotManagerBase(BotManager):
 class InMemoryBotManager(BotManagerBase):
     """An in-memory object manager."""
 
+    # TODO should in-memory implementation care about eviction of old objects ?
     _objects: dict[ObjectKey, Any] = PrivateAttr(default_factory=dict)
 
     async def get_full_conversion(

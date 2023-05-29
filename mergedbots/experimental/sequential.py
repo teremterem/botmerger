@@ -87,10 +87,16 @@ class ConversationSequence(BaseModel):
 
     _inbound_queue: asyncio.Queue[MergedMessage] = PrivateAttr(default_factory=asyncio.Queue)
     _outbound_queue: asyncio.Queue[MergedMessage | object] = PrivateAttr(default_factory=asyncio.Queue)
+    _first_message: bool = PrivateAttr(default=True)
 
     async def wait_for_incoming(self) -> MergedMessage:
         """Wait for the next message from the originator."""
-        await self._outbound_queue.put(_INBOUND_MSG_SENTINEL)
+        if self._first_message:
+            self._first_message = False
+        else:
+            # for the rest of the messages we need to notify `_fulfill_single_msg` that it's time to "restart"
+            # the event
+            await self._outbound_queue.put(_INBOUND_MSG_SENTINEL)
         message = await self._inbound_queue.get()
         return message
 
