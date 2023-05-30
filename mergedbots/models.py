@@ -98,6 +98,7 @@ class MergedMessage(MergedObject):
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a service followup for the user."""
         return await self.bot_response(
@@ -105,12 +106,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=True,  # it's not the final bot response, more messages are expected
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
+            **kwargs,
         )
 
     async def service_followup_as_final_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a service followup as the final response to the user."""
         return await self.bot_response(
@@ -118,12 +121,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=False,
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
+            **kwargs,
         )
 
     async def interim_bot_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create an interim bot response to this message (which means there will be more responses)."""
         return await self.bot_response(
@@ -131,12 +136,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=True,  # there will be more messages
             is_visible_to_bots=True,
+            **kwargs,
         )
 
     async def final_bot_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a final bot response to this message."""
         return await self.bot_response(
@@ -144,4 +151,5 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=False,
             is_visible_to_bots=True,
+            **kwargs,
         )
