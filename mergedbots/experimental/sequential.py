@@ -10,6 +10,7 @@ from typing import Awaitable, Callable, AsyncGenerator
 from pydantic import PrivateAttr, BaseModel
 
 from mergedbots.base import MergedParticipant
+from mergedbots.errors import ErrorWrapper
 from mergedbots.models import MergedBot, MergedMessage
 
 SequentialFulfillmentFunc = Callable[[MergedBot, "ConversationSequence"], Awaitable[None]]
@@ -64,11 +65,17 @@ class SequentialMergedBotWrapper(BaseModel):
                 # the session has finished running - make room for a new session from the same originator in the future
                 self._sessions.pop(session.originator)
                 return
+            if isinstance(response, Exception):
+                raise ErrorWrapper(error=response)
 
             yield response
 
     async def _run_session_till_the_end(self, session: "ConversationSequence") -> None:
-        await self._fulfillment_func(self.bot, session)
+        try:
+            await self._fulfillment_func(self.bot, session)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # don't lose the exception
+            await session._outbound_queue.put(exc)
         await session._outbound_queue.put(_SESSION_ENDED_SENTINEL)
 
     def __call__(self, fulfillment_func: SequentialFulfillmentFunc) -> SequentialFulfillmentFunc:
