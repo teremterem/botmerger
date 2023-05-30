@@ -50,8 +50,6 @@ class SequentialMergedBotWrapper(BaseModel):
         await session._inbound_queue.put(message)
 
         if is_new_session:
-            # TODO broadcast errors that happen inside _run_session_till_the_end back to the user
-            #  (see ext.langchain_integration for an example of how to do that)
             asyncio.create_task(self._run_session_till_the_end(session))
 
         while True:
