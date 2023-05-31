@@ -36,6 +36,13 @@ class MergedBot(MergedParticipant):
         ]
         return responses
 
+    async def get_final_response(
+        self, request: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> "MergedMessage | None":
+        """Run fulfillment till the end and return the last response."""
+        responses = await self.list_responses(request, include_invisible_to_bots=include_invisible_to_bots)
+        return responses[-1] if responses else None
+
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
         """A decorator that registers a local fulfillment function for this MergedBot."""
         self._fulfillment_func = fulfillment_func
