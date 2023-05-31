@@ -19,6 +19,7 @@ class MergedBot(MergedParticipant):
 
     handle: str
     description: str = None
+    # TODO store this in a special fulfillment_funcs dict in BotManager (no need to involve Redis, though)
     _fulfillment_func: FulfillmentFunc = PrivateAttr(default=None)
 
     async def fulfill(self, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
@@ -26,11 +27,20 @@ class MergedBot(MergedParticipant):
         async for response in self.manager.fulfill(self.handle, request):
             yield response
 
+    async def list_responses(
+        self, request: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> list["MergedMessage"]:
+        """Run fulfillment till the end and collect all the responses."""
+        responses = [
+            resp async for resp in self.fulfill(request) if include_invisible_to_bots or resp.is_visible_to_bots
+        ]
+        return responses
+
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
         """A decorator that registers a local fulfillment function for this MergedBot."""
         self._fulfillment_func = fulfillment_func
         try:
-            fulfillment_func.merged_bot = self
+            fulfillment_func.bot = self
         except AttributeError:
             # the trick with setting `merged_bot` attribute on a function does not work with methods, but that's fine
             logger.debug("could not set `merged_bot` attribute on %r", fulfillment_func)

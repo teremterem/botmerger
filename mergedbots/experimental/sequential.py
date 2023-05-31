@@ -79,7 +79,7 @@ class SequentialMergedBotWrapper(BaseModel):
     def __call__(self, fulfillment_func: SequentialFulfillmentFunc) -> SequentialFulfillmentFunc:
         self._fulfillment_func = fulfillment_func
         try:
-            fulfillment_func.merged_bot = self.bot
+            fulfillment_func.bot = self.bot
         except AttributeError:
             # the trick with setting `merged_bot` attribute on a function does not work with methods, but that's fine
             logger.debug("could not set `merged_bot` attribute on %r", fulfillment_func)
