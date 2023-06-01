@@ -70,7 +70,10 @@ class SequentialMergedBotWrapper(BaseModel):
 
     async def _run_session_till_the_end(self, session: "ConversationSequence") -> None:
         try:
-            await self._fulfillment_func(self.bot, session)
+            while not session._inbound_queue.empty():
+                await self._fulfillment_func(self.bot, session)
+                # TODO check if `wait_for_incoming` was called at least once and raise an error if not in order to
+                #  prevent infinite loops
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # don't lose the exception
             await session._outbound_queue.put(exc)
