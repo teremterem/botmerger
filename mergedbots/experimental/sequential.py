@@ -9,6 +9,7 @@ from typing import Awaitable, Callable, AsyncGenerator
 
 from pydantic import PrivateAttr, BaseModel
 
+from mergedbots import MergedObject
 from mergedbots.base import MergedParticipant
 from mergedbots.errors import ErrorWrapper
 from mergedbots.models import MergedBot, MergedMessage
@@ -43,7 +44,7 @@ class SequentialMergedBotWrapper(BaseModel):
         is_new_session = False
 
         if not session:
-            session = ConversationSequence()
+            session = ConversationSequence(manager=self.bot.manager)
             self._sessions[message.originator] = session
             is_new_session = True
 
@@ -89,7 +90,7 @@ class SequentialMergedBotWrapper(BaseModel):
         return fulfillment_func
 
 
-class ConversationSequence(BaseModel):
+class ConversationSequence(MergedObject):
     """
     An object that represents a chat session between a bot and a user (or, more generally, a bot and an originator,
     because this might also be two bots interacting with each other).
