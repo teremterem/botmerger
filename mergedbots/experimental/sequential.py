@@ -62,7 +62,7 @@ class SequentialMergedBotWrapper(BaseModel):
                 return
             if response is _SESSION_ENDED_SENTINEL:
                 # the session has finished running - make room for a new session from the same originator in the future
-                self._sessions.pop(session.originator)
+                self._sessions.pop(message.originator)
                 return
             if isinstance(response, Exception):
                 raise ErrorWrapper(error=response)
