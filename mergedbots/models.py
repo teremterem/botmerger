@@ -19,6 +19,7 @@ class MergedBot(MergedParticipant):
 
     handle: str
     description: str = None
+    # TODO store this in a special fulfillment_funcs dict in BotManager (no need to involve Redis, though)
     _fulfillment_func: FulfillmentFunc = PrivateAttr(default=None)
 
     async def fulfill(self, request: "MergedMessage") -> AsyncGenerator["MergedMessage", None]:
@@ -26,11 +27,27 @@ class MergedBot(MergedParticipant):
         async for response in self.manager.fulfill(self.handle, request):
             yield response
 
+    async def list_responses(
+        self, request: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> list["MergedMessage"]:
+        """Run fulfillment till the end and collect all the responses."""
+        responses = [
+            resp async for resp in self.fulfill(request) if include_invisible_to_bots or resp.is_visible_to_bots
+        ]
+        return responses
+
+    async def get_final_response(
+        self, request: "MergedMessage", include_invisible_to_bots: bool = False
+    ) -> "MergedMessage | None":
+        """Run fulfillment till the end and return the last response."""
+        responses = await self.list_responses(request, include_invisible_to_bots=include_invisible_to_bots)
+        return responses[-1] if responses else None
+
     def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
         """A decorator that registers a local fulfillment function for this MergedBot."""
         self._fulfillment_func = fulfillment_func
         try:
-            fulfillment_func.merged_bot = self
+            fulfillment_func.bot = self
         except AttributeError:
             # the trick with setting `merged_bot` attribute on a function does not work with methods, but that's fine
             logger.debug("could not set `merged_bot` attribute on %r", fulfillment_func)
@@ -98,6 +115,7 @@ class MergedMessage(MergedObject):
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a service followup for the user."""
         return await self.bot_response(
@@ -105,12 +123,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=True,  # it's not the final bot response, more messages are expected
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
+            **kwargs,
         )
 
     async def service_followup_as_final_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a service followup as the final response to the user."""
         return await self.bot_response(
@@ -118,12 +138,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=False,
             is_visible_to_bots=False,  # service followups aren't meant to be interpreted by other bots
+            **kwargs,
         )
 
     async def interim_bot_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create an interim bot response to this message (which means there will be more responses)."""
         return await self.bot_response(
@@ -131,12 +153,14 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=True,  # there will be more messages
             is_visible_to_bots=True,
+            **kwargs,
         )
 
     async def final_bot_response(
         self,
         bot: MergedBot,
         content: str,
+        **kwargs,
     ) -> "MergedMessage":
         """Create a final bot response to this message."""
         return await self.bot_response(
@@ -144,4 +168,5 @@ class MergedMessage(MergedObject):
             content=content,
             is_still_typing=False,
             is_visible_to_bots=True,
+            **kwargs,
         )
