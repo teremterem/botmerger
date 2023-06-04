@@ -115,8 +115,8 @@ class ConversationSequence(MergedObject):
 
         return await asyncio.wait_for(self._inbound_queue.get(), timeout_seconds)
 
-    async def yield_outgoing(self, message: MergedMessage) -> None:
+    def yield_outgoing(self, message: MergedMessage) -> None:
         """Send a message to the originator."""
         # TODO think how to make sure that the library users will spawn their outbound messages from the latest
         #  inbound message and not a more ancient one
-        await self._outbound_queue.put(message)
+        self._outbound_queue.put_nowait(message)
