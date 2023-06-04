@@ -2,12 +2,15 @@
 """Models for the MergedBots library."""
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from typing import AsyncGenerator
 
 from pydantic import PrivateAttr
 
 from mergedbots.base import MergedObject, MergedParticipant, FulfillmentFunc
+
+if TYPE_CHECKING:
+    from mergedbots.experimental.sequential import SequentialFulfillmentFunc
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +46,30 @@ class MergedBot(MergedParticipant):
         responses = await self.list_responses(request, include_invisible_to_bots=include_invisible_to_bots)
         return responses[-1] if responses else None
 
-    def __call__(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
-        """A decorator that registers a local fulfillment function for this MergedBot."""
+    def low_level(self, fulfillment_func: FulfillmentFunc) -> FulfillmentFunc:
+        """
+        A decorator that registers a local fulfillment function for this MergedBot. Low-level means that the
+        fulfillment function will be called as an event handler for a single incoming message (as opposed to it
+        interactively handling a whole sequence of incoming messages).
+        """
         self._fulfillment_func = fulfillment_func
         try:
             fulfillment_func.bot = self
         except AttributeError:
             # the trick with setting `merged_bot` attribute on a function does not work with methods, but that's fine
             logger.debug("could not set `merged_bot` attribute on %r", fulfillment_func)
+        return fulfillment_func
+
+    def __call__(self, fulfillment_func: "SequentialFulfillmentFunc") -> "SequentialFulfillmentFunc":
+        """
+        A decorator that registers a local fulfillment function for this MergedBot. The fulfillment function is
+        meant to interactively handle a whole sequence of incoming messages. The interaction is accomplished via
+        `ConversationSequence` object that is passed as a second argument to the fulfillment function.
+        """
+        # pylint: disable=import-outside-toplevel
+        from mergedbots.experimental.sequential import SequentialMergedBotWrapper
+
+        SequentialMergedBotWrapper(self)(fulfillment_func)
         return fulfillment_func
 
 

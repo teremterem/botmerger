@@ -35,7 +35,7 @@ class SequentialMergedBotWrapper(BaseModel):
 
     def __init__(self, bot: MergedBot, **kwargs) -> None:
         super().__init__(bot=bot, **kwargs)
-        self.bot(self._fulfill_single_msg)
+        self.bot.low_level(self._fulfill_single_msg)
 
     async def _fulfill_single_msg(self, bot: MergedBot, message: MergedMessage) -> AsyncGenerator[MergedMessage, None]:
         """Fulfill a message."""
