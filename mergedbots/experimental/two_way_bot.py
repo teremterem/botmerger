@@ -15,7 +15,9 @@ class TwoWayBotWrapper(MergedObject):
     this_bot_handle: str
     target_bot_handle: str
     feedback_bot_handle: str
+
     this_bot: MergedBot = None
+    feedback_bot: MergedBot = None
 
     _inbound_queue: asyncio.Queue[MergedMessage] = PrivateAttr(default_factory=asyncio.Queue)
     _outbound_queue: asyncio.Queue[MergedMessage | object] = PrivateAttr(default_factory=asyncio.Queue)
@@ -23,8 +25,12 @@ class TwoWayBotWrapper(MergedObject):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+
         self.this_bot = self.manager.create_bot(self.this_bot_handle)
         self.this_bot(self.fulfill_this_bot)
+
+        self.feedback_bot = self.manager.create_bot(self.feedback_bot_handle)
+        self.feedback_bot(self.fulfill_feedback_bot)
 
     async def run_target_bot(self) -> None:
         while True:
@@ -45,3 +51,13 @@ class TwoWayBotWrapper(MergedObject):
             if response is _SEQUENCE_ENDED_SENTINEL:
                 return
             yield response
+
+    async def fulfill_feedback_bot(
+        self, feedback_bot: MergedBot, message: MergedMessage
+    ) -> AsyncGenerator[MergedMessage, None]:
+        await self._outbound_queue.put(message)
+        # TODO right now the problem is that fulfill_feedback_bot may start competing with fulfill_this_bot for
+        #  inbound messages - come up with a way to solve it
+        # TODO another problem: if there are multiple simultaneous users, the feedback_bot will interact with a
+        #  random user, not the one who started the conversation
+        yield await self._inbound_queue.get()
