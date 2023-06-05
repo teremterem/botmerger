@@ -64,6 +64,8 @@ class SequentialMergedBotWrapper(BaseModel):
                 self._sequences.pop((message.channel_type, message.channel_id))
                 return
             if isinstance(response, Exception):
+                # the sequence has finished running - make room for a new sequence in the same channel in the future
+                self._sequences.pop((message.channel_type, message.channel_id))
                 raise ErrorWrapper(error=response)
 
             yield response
@@ -76,10 +78,10 @@ class SequentialMergedBotWrapper(BaseModel):
                 #  prevent infinite loops
                 # TODO special treatment for `wait_for_incoming` timeouts ?
                 #  do _SESSION_ENDED_SENTINEL in case of timeout ?
+            await sequence._outbound_queue.put(_SESSION_ENDED_SENTINEL)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # don't lose the exception
             await sequence._outbound_queue.put(exc)
-        await sequence._outbound_queue.put(_SESSION_ENDED_SENTINEL)
 
     def __call__(self, fulfillment_func: SequentialFulfillmentFunc) -> SequentialFulfillmentFunc:
         self._fulfillment_func = fulfillment_func
