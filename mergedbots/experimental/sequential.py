@@ -31,7 +31,7 @@ class SequentialMergedBotWrapper(BaseModel):
 
     _fulfillment_func: SequentialFulfillmentFunc = PrivateAttr(default=None)
     # TODO introduce an alternative implementation that uses Redis for queues ?
-    _sequences: PrivateAttr(dict[tuple[str, str], "ConversationSequence"]) = PrivateAttr(default_factory=dict)
+    _sequences: dict[tuple[str, str], "ConversationSequence"] = PrivateAttr(default_factory=dict)
 
     def __init__(self, bot: MergedBot, **kwargs) -> None:
         super().__init__(bot=bot, **kwargs)
