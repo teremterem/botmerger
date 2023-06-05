@@ -11,8 +11,8 @@ _SEQUENCE_ENDED_SENTINEL = object()
 class ChannelMediator(BaseModel):
     two_way_wrapper: "TwoWayBotWrapper"
 
-    _inbound_queue: asyncio.Queue[MergedMessage] = PrivateAttr(default_factory=asyncio.Queue)
-    _outbound_queue: asyncio.Queue[MergedMessage | object] = PrivateAttr(default_factory=asyncio.Queue)
+    _human_to_bot_queue: asyncio.Queue[MergedMessage | object] = PrivateAttr(default_factory=asyncio.Queue)
+    _bot_to_human_queue: asyncio.Queue[MergedMessage | object] = PrivateAttr(default_factory=asyncio.Queue)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -20,12 +20,12 @@ class ChannelMediator(BaseModel):
 
     async def run(self) -> None:
         while True:
-            request = await self._inbound_queue.get()
+            request = await self._human_to_bot_queue.get()
             async for response in self.two_way_wrapper.manager.fulfill(
                 self.two_way_wrapper.target_bot_handle, request
             ):
-                await self._outbound_queue.put(response)
-            await self._outbound_queue.put(_SEQUENCE_ENDED_SENTINEL)
+                await self._bot_to_human_queue.put(response)
+            await self._bot_to_human_queue.put(_SEQUENCE_ENDED_SENTINEL)
         # TODO don't do infinite loop, but rather delete the ChannelMediator from TwoWayBotWrapper
         #  when both queues are empty - this will memory-leak-proof the TwoWayBotWrapper
 
@@ -59,8 +59,8 @@ class TwoWayBotWrapper(MergedObject):
             channel_mediator = ChannelMediator(two_way_wrapper=self)
             self._channel_mediators[(message.channel_type, message.channel_id)] = channel_mediator
 
-        await channel_mediator._inbound_queue.put(message)
-        while response := await channel_mediator._outbound_queue.get():
+        await channel_mediator._human_to_bot_queue.put(message)
+        while response := await channel_mediator._bot_to_human_queue.get():
             if response is _SEQUENCE_ENDED_SENTINEL:
                 return
             yield response
@@ -72,10 +72,11 @@ class TwoWayBotWrapper(MergedObject):
         channel_id = message.custom_fields["channel_id"]
         channel_mediator = self._channel_mediators[(channel_type, channel_id)]
 
-        await channel_mediator._outbound_queue.put(message)
-        # TODO right now the problem is that fulfill_feedback_bot() may start competing with ChannelMediator.run() for
-        #  inbound messages - come up with a way to solve it
-        yield await channel_mediator._inbound_queue.get()
+        # right now the problem is that fulfill_feedback_bot() may start competing with ChannelMediator.run() for
+        # inbound messages - come up with a way to solve it
+        # TODO push some kind of special object into _human_to_bot_queue to take over from ChannelMediator.run()
+        await channel_mediator._bot_to_human_queue.put(message)
+        yield await channel_mediator._human_to_bot_queue.get()
 
 
 ChannelMediator.update_forward_refs()
