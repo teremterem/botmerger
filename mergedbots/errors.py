@@ -22,7 +22,7 @@ class ErrorWrapper(MergedBotsError):
         # TODO is there a better way to automatically display the full traceback of the nested error except
         #  preformatting the whole thing into the wrapper error message ?
         super().__init__(
-            "SEE NESTED EXCEPTION BELOW:\n\n"
+            "\n\nSEE NESTED EXCEPTION BELOW\n\n"
             + "".join(traceback.format_exception(type(error), error, error.__traceback__))
         )
         # super().__init__(f"{type(error).__module__}.{type(error).__name__}: {error}")
