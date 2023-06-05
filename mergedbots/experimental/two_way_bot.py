@@ -56,7 +56,7 @@ class TwoWayBotWrapper(MergedObject):
         self, feedback_bot: MergedBot, message: MergedMessage
     ) -> AsyncGenerator[MergedMessage, None]:
         await self._outbound_queue.put(message)
-        # TODO right now the problem is that fulfill_feedback_bot may start competing with fulfill_this_bot for
+        # TODO right now the problem is that fulfill_feedback_bot may start competing with run_target_bot for
         #  inbound messages - come up with a way to solve it
         # TODO another problem: if there are multiple simultaneous users, the feedback_bot will interact with a
         #  random user, not the one who started the conversation
