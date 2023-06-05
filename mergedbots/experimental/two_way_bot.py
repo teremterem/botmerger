@@ -72,13 +72,10 @@ class TwoWayBotWrapper(MergedObject):
         channel_id = message.custom_fields["channel_id"]
         channel_mediator = self._channel_mediators[(channel_type, channel_id)]
 
-        # TODO TODO TODO
-        await self._outbound_queue.put(message)
-        # TODO right now the problem is that fulfill_feedback_bot may start competing with run_target_bot for
+        await channel_mediator._outbound_queue.put(message)
+        # TODO right now the problem is that fulfill_feedback_bot() may start competing with ChannelMediator.run() for
         #  inbound messages - come up with a way to solve it
-        # TODO another problem: if there are multiple simultaneous users, the feedback_bot will interact with a
-        #  random user, not the one who started the conversation
-        yield await self._inbound_queue.get()
+        yield await channel_mediator._inbound_queue.get()
 
 
 ChannelMediator.update_forward_refs()
