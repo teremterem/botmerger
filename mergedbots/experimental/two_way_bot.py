@@ -68,8 +68,8 @@ class TwoWayBotWrapper(MergedObject):
     async def fulfill_feedback_bot(
         self, feedback_bot: MergedBot, message: MergedMessage
     ) -> AsyncGenerator[MergedMessage, None]:
-        channel_type = message.custom_fields["channel_type"]
-        channel_id = message.custom_fields["channel_id"]
+        channel_type = message.custom_fields["human_channel_type"]
+        channel_id = message.custom_fields["human_channel_id"]
         channel_mediator = self._channel_mediators[(channel_type, channel_id)]
 
         # right now the problem is that fulfill_feedback_bot() may start competing with ChannelMediator.run() for
