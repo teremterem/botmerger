@@ -27,10 +27,10 @@ class TwoWayBotWrapper(MergedObject):
         super().__init__(**kwargs)
 
         self.this_bot = self.manager.create_bot(self.this_bot_handle)
-        self.this_bot(self.fulfill_this_bot)
+        self.this_bot.low_level(self.fulfill_this_bot)
 
         self.feedback_bot = self.manager.create_bot(self.feedback_bot_handle)
-        self.feedback_bot(self.fulfill_feedback_bot)
+        self.feedback_bot.low_level(self.fulfill_feedback_bot)
 
     async def run_target_bot(self) -> None:
         while True:
