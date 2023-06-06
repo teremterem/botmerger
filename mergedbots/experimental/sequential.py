@@ -31,11 +31,11 @@ class SequentialMergedBotWrapper(BaseModel):
 
     _fulfillment_func: SequentialFulfillmentFunc = PrivateAttr(default=None)
     # TODO introduce an alternative implementation that uses Redis for queues ?
-    _sequences: PrivateAttr(dict[tuple[str, str], "ConversationSequence"]) = PrivateAttr(default_factory=dict)
+    _sequences: dict[tuple[str, str], "ConversationSequence"] = PrivateAttr(default_factory=dict)
 
     def __init__(self, bot: MergedBot, **kwargs) -> None:
         super().__init__(bot=bot, **kwargs)
-        self.bot(self._fulfill_single_msg)
+        self.bot.low_level(self._fulfill_single_msg)
 
     async def _fulfill_single_msg(self, bot: MergedBot, message: MergedMessage) -> AsyncGenerator[MergedMessage, None]:
         """Fulfill a message."""
@@ -64,6 +64,8 @@ class SequentialMergedBotWrapper(BaseModel):
                 self._sequences.pop((message.channel_type, message.channel_id))
                 return
             if isinstance(response, Exception):
+                # the sequence has finished running - make room for a new sequence in the same channel in the future
+                self._sequences.pop((message.channel_type, message.channel_id))
                 raise ErrorWrapper(error=response)
 
             yield response
@@ -76,10 +78,10 @@ class SequentialMergedBotWrapper(BaseModel):
                 #  prevent infinite loops
                 # TODO special treatment for `wait_for_incoming` timeouts ?
                 #  do _SESSION_ENDED_SENTINEL in case of timeout ?
+            await sequence._outbound_queue.put(_SESSION_ENDED_SENTINEL)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # don't lose the exception
             await sequence._outbound_queue.put(exc)
-        await sequence._outbound_queue.put(_SESSION_ENDED_SENTINEL)
 
     def __call__(self, fulfillment_func: SequentialFulfillmentFunc) -> SequentialFulfillmentFunc:
         self._fulfillment_func = fulfillment_func
@@ -115,8 +117,8 @@ class ConversationSequence(MergedObject):
 
         return await asyncio.wait_for(self._inbound_queue.get(), timeout_seconds)
 
-    async def yield_outgoing(self, message: MergedMessage) -> None:
+    def yield_outgoing(self, message: MergedMessage) -> None:
         """Send a message to the originator."""
         # TODO think how to make sure that the library users will spawn their outbound messages from the latest
         #  inbound message and not a more ancient one
-        await self._outbound_queue.put(message)
+        self._outbound_queue.put_nowait(message)
