@@ -82,6 +82,7 @@ class BotMergerBase(BotMerger):
         self._assert_correct_obj_type_or_none(bot, MergedBot, key)
         return bot
 
+    # noinspection PyMethodMayBeStatic
     def _generate_merged_bot_key(self, alias: str) -> tuple[str, str]:
         """Generate a key for a bot."""
         return "bot_by_alias", alias
