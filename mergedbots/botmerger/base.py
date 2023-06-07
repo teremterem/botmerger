@@ -36,7 +36,7 @@ class BotMerger(ABC):
     async def find_or_create_user_channel(
         self,
         channel_type: str,
-        channel_specific_id: Any,
+        channel_id: Any,
         user_display_name: str,
         **kwargs,
     ) -> "MergedChannel":

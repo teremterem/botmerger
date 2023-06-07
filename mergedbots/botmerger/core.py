@@ -55,7 +55,7 @@ class BotMergerBase(BotMerger):
     async def find_or_create_user_channel(
         self,
         channel_type: str,
-        channel_specific_id: Any,
+        channel_id: Any,
         user_display_name: str,
         **kwargs,
     ) -> MergedChannel:
@@ -64,7 +64,7 @@ class BotMergerBase(BotMerger):
         used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
         exist and is ignored if the channel already exists.
         """
-        key = self._generate_channel_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
+        key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
         channel = await self._get_object(key)
         self._assert_correct_obj_type_or_none(channel, MergedChannel, key)
@@ -76,7 +76,7 @@ class BotMergerBase(BotMerger):
             channel = MergedChannel(
                 merger=self,
                 channel_type=channel_type,
-                channel_id=channel_specific_id,
+                channel_id=channel_id,
                 owner=user,
             )
             await self._register_object(key, channel)
@@ -120,9 +120,9 @@ class BotMergerBase(BotMerger):
         return "bot_by_alias", alias
 
     # noinspection PyMethodMayBeStatic
-    def _generate_channel_key(self, channel_type: str, channel_specific_id: Any) -> tuple[str, str, str]:
+    def _generate_channel_key(self, channel_type: str, channel_id: Any) -> tuple[str, str, str]:
         """Generate a key for a channel."""
-        return "channel_by_type_and_id", channel_type, channel_specific_id
+        return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: type, key: Any) -> None:
