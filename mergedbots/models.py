@@ -90,7 +90,7 @@ class MergedMessage(MergedObject):
     previous_msg: "MergedMessage | None"
     in_fulfillment_of: "MergedMessage | None"
 
-    # TODO get rid if these two attributes - this data should be retrieved from the underlying storage
+    # TODO get rid of these two attributes - this data should be retrieved from the underlying storage
     _responses: list["MergedMessage"] = PrivateAttr(default_factory=list)
     _responses_by_bots: dict[str, list["MergedMessage"]] = PrivateAttr(default_factory=lambda: defaultdict(list))
 

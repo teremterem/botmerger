@@ -1,7 +1,7 @@
 # pylint: disable=no-name-in-module
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Optional, Dict
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
@@ -18,14 +18,14 @@ class BotMerger(ABC):
     """
 
     @abstractmethod
-    def create_bot(self, alias: str, name: str = None, **kwargs) -> "MergedBot":
+    def create_bot(self, alias: str, name: Optional[str] = None, **kwargs) -> "MergedBot":
         """
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
         as a decorator to `respond` functions as they are being defined).
         """
 
     @abstractmethod
-    async def create_bot_async(self, alias: str, name: str = None, **kwargs) -> "MergedBot":
+    async def create_bot_async(self, alias: str, name: Optional[str] = None, **kwargs) -> "MergedBot":
         """Create a bot while inside an async context."""
 
     @abstractmethod
@@ -71,7 +71,7 @@ class MergedObject(BaseModel):
     uuid: UUID4 = Field(default_factory=uuid4)
     # TODO freeze the contents of `extra_data` upon model creation recursively
     # TODO validate that all values in `extra_data` are json-serializable
-    extra_fields: dict[str, Any] = Field(default_factory=dict)
+    extra_fields: Dict[str, Any] = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
