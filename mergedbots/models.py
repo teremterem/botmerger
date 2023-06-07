@@ -73,12 +73,6 @@ class MergedBot(MergedParticipant):
         return fulfillment_func
 
 
-class MergedUser(MergedParticipant):
-    """A user that can interact with bots."""
-
-    is_human: bool = True
-
-
 class MergedMessage(MergedObject):
     """A message that can be sent by a bot or a user."""
 

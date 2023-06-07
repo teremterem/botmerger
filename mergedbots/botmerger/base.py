@@ -7,7 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, UUID4, Field
 
 if TYPE_CHECKING:
-    from mergedbots.botmerger.models import MergedBot
+    from mergedbots.botmerger.models import MergedBot, MergedChannel
 
 
 class BotMerger(ABC):
@@ -20,17 +20,31 @@ class BotMerger(ABC):
     @abstractmethod
     def create_bot(self, alias: str, name: str = None, **kwargs) -> "MergedBot":
         """
-        Create a merged bot. This version of bot creation function is meant to be called outside an async context
-        (for ex. as a decorator to `react` functions as they are being defined).
+        Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
+        as a decorator to `respond` functions as they are being defined).
         """
 
     @abstractmethod
     async def create_bot_async(self, alias: str, name: str = None, **kwargs) -> "MergedBot":
-        """Create a merged bot while inside an async context."""
+        """Create a bot while inside an async context."""
 
     @abstractmethod
     async def find_bot(self, alias: str) -> "MergedBot":
         """Fetch a bot by its alias."""
+
+    @abstractmethod
+    async def find_or_create_user_channel(
+        self,
+        channel_type: str,
+        channel_specific_id: Any,
+        user_display_name: str,
+        **kwargs,
+    ) -> "MergedChannel":
+        """
+        Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
+        used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
+        exist and is ignored if the channel already exists.
+        """
 
 
 class MergedObject(BaseModel):
@@ -68,10 +82,3 @@ class MergedObject(BaseModel):
     def __hash__(self) -> int:
         """The hash of the model is the hash of its uuid."""
         return hash(self.uuid)
-
-
-class MergedParticipant(MergedObject):
-    """A chat participant."""
-
-    name: str
-    is_human: bool

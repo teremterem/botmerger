@@ -9,7 +9,7 @@ from pydantic import UUID4
 
 from mergedbots.botmerger.base import BotMerger, MergedObject
 from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
-from mergedbots.botmerger.models import MergedBot
+from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser
 
 ObjectKey = UUID4 | tuple[Any, ...]
 
@@ -26,15 +26,15 @@ class BotMergerBase(BotMerger):
 
     def create_bot(self, alias: str, name: str = None, description: str = None, **kwargs) -> MergedBot:
         """
-        Create a merged bot. This version of bot creation function is meant to be called outside an async context
-        (for ex. as a decorator to `react` functions as they are being defined).
+        Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
+        as a decorator to `react` functions as they are being defined).
         """
         # TODO is this a dirty hack ? find a better way to do this ?
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(self.create_bot_async(alias=alias, name=name, description=description, **kwargs))
 
     async def create_bot_async(self, alias: str, name: str = None, description: str = None, **kwargs) -> MergedBot:
-        """Create a merged bot."""
+        """Create a bot while inside an async context."""
         if await self._get_bot(alias):
             raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
 
@@ -51,6 +51,38 @@ class BotMergerBase(BotMerger):
         if not bot:
             raise BotNotFoundError(f"bot with alias {alias!r} does not exist")
         return bot
+
+    async def find_or_create_user_channel(
+        self,
+        channel_type: str,
+        channel_specific_id: Any,
+        user_display_name: str,
+        **kwargs,
+    ) -> MergedChannel:
+        """
+        Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
+        used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
+        exist and is ignored if the channel already exists.
+        """
+        key = self._generate_channel_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
+
+        channel = await self._get_object(key)
+        self._assert_correct_obj_type_or_none(channel, MergedChannel, key)
+
+        if not channel:
+            user = MergedUser(merger=self, name=user_display_name, **kwargs)
+            await self._register_merged_object(user)
+
+            channel = MergedChannel(
+                merger=self,
+                channel_type=channel_type,
+                channel_id=channel_specific_id,
+                owner=user,
+            )
+            await self._register_object(key, channel)
+            await self._register_merged_object(user)
+
+        return channel
 
     @abstractmethod
     async def _register_object(self, key: ObjectKey, value: Any) -> None:
@@ -73,19 +105,24 @@ class BotMergerBase(BotMerger):
     async def _register_bot(self, bot: MergedBot) -> None:
         """Register a bot."""
         await self._register_merged_object(bot)
-        await self._register_object(self._generate_merged_bot_key(bot.alias), bot)
+        await self._register_object(self._generate_bot_key(bot.alias), bot)
 
     async def _get_bot(self, alias: str) -> MergedBot | None:
         """Get a bot by its alias."""
-        key = self._generate_merged_bot_key(alias)
+        key = self._generate_bot_key(alias)
         bot = await self._get_object(key)
         self._assert_correct_obj_type_or_none(bot, MergedBot, key)
         return bot
 
     # noinspection PyMethodMayBeStatic
-    def _generate_merged_bot_key(self, alias: str) -> tuple[str, str]:
+    def _generate_bot_key(self, alias: str) -> tuple[str, str]:
         """Generate a key for a bot."""
         return "bot_by_alias", alias
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_channel_key(self, channel_type: str, channel_specific_id: Any) -> tuple[str, str, str]:
+        """Generate a key for a channel."""
+        return "channel_by_type_and_id", channel_type, channel_specific_id
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: type, key: Any) -> None:
