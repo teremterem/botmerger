@@ -1,20 +1,20 @@
-"""This module contains all MergedBots errors."""
+"""This module contains all BotMerger errors."""
 import traceback
 
 
-class MergedBotsError(Exception):
-    """Base class for all MergedBots errors."""
+class BotMergerError(Exception):
+    """Base class for all BotMerger errors."""
 
 
-class BotHandleTakenError(MergedBotsError):
-    """Raised when a bot with the same handle already exists."""
+class BotAliasTakenError(BotMergerError):
+    """Raised when a bot with the same alias already exists."""
 
 
-class BotNotFoundError(MergedBotsError):
+class BotNotFoundError(BotMergerError):
     """Raised when a bot with the given handle does not exist."""
 
 
-class ErrorWrapper(MergedBotsError):
+class ErrorWrapper(BotMergerError):
     """This wrapper is used to contain errors that occurred outside main coroutine."""
 
     def __init__(self, error: BaseException) -> None:

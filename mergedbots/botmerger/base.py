@@ -19,7 +19,10 @@ class BotMerger(ABC):
 
     @abstractmethod
     def create_bot(self, alias: str, name: str = None, **kwargs) -> "MergedBot":
-        """Create a merged bot while outside an async context."""
+        """
+        Create a merged bot. This version of bot creation function is meant to be called outside an async context
+        (for ex. as a decorator to `react` functions as they are being defined).
+        """
 
     @abstractmethod
     async def create_bot_async(self, alias: str, name: str = None, **kwargs) -> "MergedBot":

@@ -30,3 +30,4 @@ def test_merged_object() -> None:
     assert obj2.extra_fields == {}
     assert obj1.extra_fields is not obj2.extra_fields
     # TODO assert obj1.dict() == {"uuid": obj1.uuid, "extra_fields": {}}
+    assert MergedObject(merger=merger, extra_fields={"test": "test"}).extra_fields == {"test": "test"}
