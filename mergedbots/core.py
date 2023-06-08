@@ -1,15 +1,14 @@
 # pylint: disable=no-name-in-module
 """BotManager implementations."""
-import asyncio
 import logging
 from abc import abstractmethod
 from typing import Any, AsyncGenerator
 
+from mergedbots.errors import BotNotFoundError
 from pydantic import PrivateAttr, UUID4
 
 from mergedbots.base import BotManager
-from mergedbots.errors import BotHandleTakenError, BotNotFoundError
-from mergedbots.models import MergedParticipant, MergedUser, MergedBot, MergedMessage, MergedObject
+from mergedbots.models import MergedParticipant, MergedBot, MergedMessage, MergedObject
 
 ObjectKey = Any | tuple[Any, ...]
 
@@ -48,53 +47,6 @@ class BotManagerBase(BotManager):
         # noinspection PyProtectedMember
         async for response in bot._fulfillment_func(bot, request):  # pylint: disable=protected-access
             yield response
-
-    def create_bot(self, handle: str, name: str = None, **kwargs) -> MergedBot:
-        """
-        Create a merged bot. This version of bot creation function is meant to be called before event loop is started
-        (for ex. as a decorator to fulfillment functions as they are being defined).
-        """
-        # TODO is this a dirty hack ? find a better way to do this ?
-        # start a temporary event loop and call the async version of this method from there
-        return asyncio.run(self.create_bot_async(handle=handle, name=name, **kwargs))
-
-    async def create_bot_async(self, handle: str, name: str = None, **kwargs) -> MergedBot:
-        """Create a merged bot."""
-        if await self._get_bot(handle):
-            raise BotHandleTakenError(f"bot with handle {handle!r} is already registered")
-
-        if not name:
-            name = handle
-        bot = MergedBot(manager=self, handle=handle, name=name, **kwargs)
-
-        await self._register_bot(bot)
-        return bot
-
-    async def find_bot(self, handle: str) -> MergedBot:
-        """Fetch a bot by its handle."""
-        bot = await self._get_bot(handle)
-        if not bot:
-            raise BotNotFoundError(f"bot with handle {handle!r} does not exist")
-        return bot
-
-    async def find_or_create_user(
-        self,
-        channel_type: str,
-        channel_specific_id: Any,
-        user_display_name: str,
-        **kwargs,
-    ) -> MergedUser:
-        """Find or create a user."""
-        key = self._generate_merged_user_key(channel_type=channel_type, channel_specific_id=channel_specific_id)
-        user = await self._get_object(key)
-        self._assert_correct_obj_type_or_none(user, MergedUser, key)
-        if user:
-            return user
-
-        user = MergedUser(manager=self, name=user_display_name, **kwargs)
-        await self._register_merged_object(user)
-        await self._register_object(key, user)
-        return user
 
     async def create_originator_message(  # pylint: disable=too-many-arguments
         self,

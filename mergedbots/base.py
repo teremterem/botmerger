@@ -28,12 +28,6 @@ class BotManager(BaseModel, ABC):
         """
 
     @abstractmethod
-    async def find_or_create_user(
-        self, channel_type: str, channel_specific_id: Any, user_display_name: str, **kwargs
-    ) -> "MergedUser":
-        """Find or create a user."""
-
-    @abstractmethod
     async def get_full_conversion(
         self, conversation_tail: "MergedMessage", include_invisible_to_bots: bool = False
     ) -> list["MergedMessage"]:
