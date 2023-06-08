@@ -1,7 +1,8 @@
+# pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
 from typing import Any, Union, Tuple, Optional
 
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from mergedbots.botmerger.base import MergedObject
 
@@ -49,7 +50,15 @@ class MergedMessage(MergedObject):
     is_visible_to_bots: bool
 
 
-class MessageBundle(MergedObject):
-    """A bundle of messages that are sent as an uninterrupted sequence."""
+class MessageEnvelope(BaseModel):
+    """
+    A volatile packaging for one or more messages. "Volatile" means that the envelope itself is not persisted by
+    BotMerger (only the messages are).
+
+    :param messages: the messages in this envelope
+    :param show_typing_afterwards: whether to show a typing indicator after these messages are dispatched (and until
+           the next "transmission")
+    """
 
     messages: Tuple[MergedMessage, ...]
+    show_typing_afterwards: bool

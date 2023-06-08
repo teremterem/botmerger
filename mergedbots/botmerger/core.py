@@ -22,7 +22,11 @@ class BotMergerBase(BotMerger):
     concrete BotMerger implementations.
     """
 
-    # TODO think about thread-safety ?
+    # TODO should we or should we not think about thread-safety ?
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._single_turn_responders: Dict[ObjectKey, Any] = {}
 
     def create_bot(
         self, alias: str, name: Optional[str] = None, description: Optional[str] = None, **kwargs
@@ -31,7 +35,6 @@ class BotMergerBase(BotMerger):
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
         as a decorator to `react` functions as they are being defined).
         """
-        # TODO is this a dirty hack ? find a better way to do this ?
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(self.create_bot_async(alias=alias, name=name, description=description, **kwargs))
 

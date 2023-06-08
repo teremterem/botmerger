@@ -49,7 +49,11 @@ class BotMerger(ABC):
 
 class MergedObject(BaseModel):
     """
-    Base class for all BotMerger models.
+    Base class for all BotMerger models. All the child classes of this class are meant to be immutable. Whatever
+    mutable state one needs to associate with these objects should not be stored in the objects directly. Instead,
+    such state should be stored at and dynamically looked up via BotMerger instance these objects belong to. This
+    should simplify implementation of a distributed deployment of a network of BotMerger instances each with their
+    own bots and which interact with each other.
 
     ATTENTION! Models inheriting from this class should not be instantiated directly. Use the factory methods of
     `BotManager` instead.
@@ -57,10 +61,8 @@ class MergedObject(BaseModel):
 
     class Config(BaseModel.Config):
         """
-        Pydantic config.
-
-        ATTENTION! If you define a new config for a model inheriting from this class, make sure to inherit from this
-        config as well.
+        ATTENTION AGAIN! If you define a new config for a model inheriting from this class, make sure to inherit from
+        this config as well.
         """
 
         allow_mutation = False
@@ -82,3 +84,8 @@ class MergedObject(BaseModel):
     def __hash__(self) -> int:
         """The hash of the model is the hash of its uuid."""
         return hash(self.uuid)
+
+
+class InteractionContext:
+    # TODO
+    pass
