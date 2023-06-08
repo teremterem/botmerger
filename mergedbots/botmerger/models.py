@@ -4,7 +4,7 @@ from typing import Any, Union, Tuple, Optional
 
 from pydantic import Field, BaseModel
 
-from mergedbots.botmerger.base import MergedObject
+from mergedbots.botmerger.base import MergedObject, ResponderFunction
 
 
 class MergedParticipant(MergedObject):
@@ -21,6 +21,18 @@ class MergedBot(MergedParticipant):
 
     alias: str
     description: Optional[str] = None
+
+    def single_turn(self, responder: ResponderFunction) -> ResponderFunction:
+        """
+        A decorator that registers a local single-turn response function for this MergedBot. Single-turn means that
+        the response function will be called as an event handler for a single incoming message (or a single set of
+        messages if they were sent as a bundle).
+        """
+        self.merger.register_local_single_turn_responder(self, responder)
+        return responder
+
+    def __call__(self, responder: ResponderFunction) -> ResponderFunction:
+        return self.single_turn(responder)
 
 
 class MergedUser(MergedParticipant):
@@ -56,9 +68,9 @@ class MessageEnvelope(BaseModel):
     BotMerger (only the messages are).
 
     :param messages: the messages in this envelope
-    :param show_typing_afterwards: whether to show a typing indicator after these messages are dispatched (and until
-           the next "transmission")
+    :param show_typing_indicator: whether to show a typing indicator after these messages are dispatched (and
+           until the next response) TODO improve this description
     """
 
     messages: Tuple[MergedMessage, ...]
-    show_typing_afterwards: bool
+    show_typing_indicator: bool

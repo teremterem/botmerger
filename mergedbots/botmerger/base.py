@@ -1,13 +1,15 @@
 # pylint: disable=no-name-in-module
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING, Optional, Dict
+from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
 
 if TYPE_CHECKING:
     from mergedbots.botmerger.models import MergedBot, MergedChannel
+
+ResponderFunction = Callable[["InteractionContext"], Awaitable[None]]
 
 
 class BotMerger(ABC):
@@ -18,7 +20,14 @@ class BotMerger(ABC):
     """
 
     @abstractmethod
-    def create_bot(self, alias: str, name: Optional[str] = None, **kwargs) -> "MergedBot":
+    def create_bot(
+        self,
+        alias: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        single_turn: Optional[ResponderFunction] = None,
+        **kwargs,
+    ) -> "MergedBot":
         """
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
         as a decorator to `respond` functions as they are being defined).
@@ -27,6 +36,10 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_bot_async(self, alias: str, name: Optional[str] = None, **kwargs) -> "MergedBot":
         """Create a bot while inside an async context."""
+
+    @abstractmethod
+    def register_local_single_turn_responder(self, bot: "MergedBot", responder: ResponderFunction) -> None:
+        """Register a local function as a single turn responder for a bot."""
 
     @abstractmethod
     async def find_bot(self, alias: str) -> "MergedBot":
@@ -87,5 +100,4 @@ class MergedObject(BaseModel):
 
 
 class InteractionContext:
-    # TODO
-    pass
+    """TODO"""

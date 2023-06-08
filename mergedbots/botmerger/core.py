@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from mergedbots.botmerger.base import BotMerger, MergedObject
+from mergedbots.botmerger.base import BotMerger, MergedObject, ResponderFunction
 from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
 from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser
 
@@ -26,20 +26,32 @@ class BotMergerBase(BotMerger):
 
     def __init__(self) -> None:
         super().__init__()
-        self._single_turn_responders: Dict[ObjectKey, Any] = {}
+        self._single_turn_responders: Dict[UUID4, ResponderFunction] = {}
 
     def create_bot(
-        self, alias: str, name: Optional[str] = None, description: Optional[str] = None, **kwargs
+        self,
+        alias: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        single_turn: Optional[ResponderFunction] = None,
+        **kwargs,
     ) -> MergedBot:
         """
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
         as a decorator to `react` functions as they are being defined).
         """
         # start a temporary event loop and call the async version of this method from there
-        return asyncio.run(self.create_bot_async(alias=alias, name=name, description=description, **kwargs))
+        return asyncio.run(
+            self.create_bot_async(alias=alias, name=name, description=description, single_turn=single_turn, **kwargs)
+        )
 
     async def create_bot_async(
-        self, alias: str, name: Optional[str] = None, description: Optional[str] = None, **kwargs
+        self,
+        alias: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        single_turn: Optional[ResponderFunction] = None,
+        **kwargs,
     ) -> MergedBot:
         """Create a bot while inside an async context."""
         if await self._get_bot(alias):
@@ -50,7 +62,19 @@ class BotMergerBase(BotMerger):
         bot = MergedBot(merger=self, alias=alias, name=name, description=description, **kwargs)
 
         await self._register_bot(bot)
+
+        if single_turn:
+            bot.single_turn(single_turn)
         return bot
+
+    def register_local_single_turn_responder(self, bot: "MergedBot", responder: ResponderFunction) -> None:
+        """Register a local function as a single turn responder for a bot."""
+        self._single_turn_responders[bot.uuid] = responder
+        try:
+            responder.bot = bot
+        except AttributeError:
+            # the trick with setting attributes on a function does not work with methods, but that's fine
+            logger.debug("could not set attributes on %r", responder)
 
     async def find_bot(self, alias: str) -> MergedBot:
         """Fetch a bot by its alias."""
@@ -157,7 +181,3 @@ class InMemoryBotMerger(BotMergerBase):
     async def _get_object(self, key: ObjectKey) -> Optional[Any]:
         """Get an object by its key."""
         return self._objects.get(key)
-
-
-# TODO RemoteBotMerger for distributed configurations ?
-# TODO RedisBotMerger ? SQLAlchemyBotMerger ? A hybrid of the two ? Any other ideas ?
