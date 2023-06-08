@@ -1,10 +1,10 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from typing import Any, Union, Tuple, Optional
+from typing import Any, Union, Optional
 
 from pydantic import Field, BaseModel
 
-from mergedbots.botmerger.base import MergedObject, SingleTurnHandler
+from mergedbots.botmerger.base import MergedObject, SingleTurnHandler, BotResponse
 
 
 class MergedParticipant(MergedObject):
@@ -21,6 +21,13 @@ class MergedBot(MergedParticipant):
 
     alias: str
     description: Optional[str] = None
+
+    def trigger(self, request: Union["MergedMessage", "MessageEnvelope"]) -> BotResponse:
+        """
+        Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
+        response(s) in an asynchronous manner.
+        """
+        return self.merger.trigger_bot(self, request)
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
@@ -64,13 +71,13 @@ class MergedMessage(MergedObject):
 
 class MessageEnvelope(BaseModel):
     """
-    A volatile packaging for one or more messages. "Volatile" means that the envelope itself is not persisted by
-    BotMerger (only the messages are).
+    A volatile packaging for a message. "Volatile" means that the envelope itself is not persisted by
+    BotMerger (only the message is).
 
-    :param messages: the messages in this envelope
-    :param show_typing_indicator: whether to show a typing indicator after these messages are dispatched (and
-           until the next response) TODO improve this description
+    :param message: the message in this envelope
+    :param show_typing_indicator: whether to show a typing indicator after this message is dispatched (and
+           until the next message) TODO improve this description
     """
 
-    messages: Tuple[MergedMessage, ...]
+    message: MergedMessage
     show_typing_indicator: bool

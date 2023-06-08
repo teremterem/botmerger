@@ -108,3 +108,7 @@ class MergedObject(BaseModel):
 
 class SingleTurnContext:
     """TODO"""
+
+
+class BotResponse:
+    """TODO"""
