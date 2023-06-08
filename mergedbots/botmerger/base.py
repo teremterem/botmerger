@@ -9,7 +9,7 @@ from pydantic import BaseModel, UUID4, Field
 if TYPE_CHECKING:
     from mergedbots.botmerger.models import MergedBot, MergedChannel
 
-ResponderFunction = Callable[["InteractionContext"], Awaitable[None]]
+SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 
 
 class BotMerger(ABC):
@@ -25,21 +25,28 @@ class BotMerger(ABC):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        single_turn: Optional[ResponderFunction] = None,
+        single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> "MergedBot":
         """
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
-        as a decorator to `respond` functions as they are being defined).
+        as a decorator to single-turn and multi-turn handler functions).
         """
 
     @abstractmethod
-    async def create_bot_async(self, alias: str, name: Optional[str] = None, **kwargs) -> "MergedBot":
+    async def create_bot_async(
+        self,
+        alias: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        single_turn: Optional[SingleTurnHandler] = None,
+        **kwargs,
+    ) -> "MergedBot":
         """Create a bot while inside an async context."""
 
     @abstractmethod
-    def register_local_single_turn_responder(self, bot: "MergedBot", responder: ResponderFunction) -> None:
-        """Register a local function as a single turn responder for a bot."""
+    def register_local_single_turn_handler(self, bot: "MergedBot", handler: SingleTurnHandler) -> None:
+        """Register a local function as a single turn handler for a bot."""
 
     @abstractmethod
     async def find_bot(self, alias: str) -> "MergedBot":
@@ -69,7 +76,7 @@ class MergedObject(BaseModel):
     own bots and which interact with each other.
 
     ATTENTION! Models inheriting from this class should not be instantiated directly. Use the factory methods of
-    `BotManager` instead.
+    `BotMerger` instead.
     """
 
     class Config(BaseModel.Config):
@@ -99,5 +106,5 @@ class MergedObject(BaseModel):
         return hash(self.uuid)
 
 
-class InteractionContext:
+class SingleTurnContext:
     """TODO"""

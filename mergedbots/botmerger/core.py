@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from mergedbots.botmerger.base import BotMerger, MergedObject, ResponderFunction
+from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler
 from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
 from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser
 
@@ -26,19 +26,19 @@ class BotMergerBase(BotMerger):
 
     def __init__(self) -> None:
         super().__init__()
-        self._single_turn_responders: Dict[UUID4, ResponderFunction] = {}
+        self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
 
     def create_bot(
         self,
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        single_turn: Optional[ResponderFunction] = None,
+        single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
         """
         Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
-        as a decorator to `react` functions as they are being defined).
+        as a decorator to single-turn and multi-turn handler functions).
         """
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
@@ -50,7 +50,7 @@ class BotMergerBase(BotMerger):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        single_turn: Optional[ResponderFunction] = None,
+        single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
         """Create a bot while inside an async context."""
@@ -67,14 +67,14 @@ class BotMergerBase(BotMerger):
             bot.single_turn(single_turn)
         return bot
 
-    def register_local_single_turn_responder(self, bot: "MergedBot", responder: ResponderFunction) -> None:
-        """Register a local function as a single turn responder for a bot."""
-        self._single_turn_responders[bot.uuid] = responder
+    def register_local_single_turn_handler(self, bot: "MergedBot", handler: SingleTurnHandler) -> None:
+        """Register a local function as a single-turn handler for a bot."""
+        self._single_turn_handlers[bot.uuid] = handler
         try:
-            responder.bot = bot
+            handler.bot = bot
         except AttributeError:
             # the trick with setting attributes on a function does not work with methods, but that's fine
-            logger.debug("could not set attributes on %r", responder)
+            logger.debug("could not set attributes on %r", handler)
 
     async def find_bot(self, alias: str) -> MergedBot:
         """Fetch a bot by its alias."""
