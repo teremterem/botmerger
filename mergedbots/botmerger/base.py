@@ -1,13 +1,13 @@
 # pylint: disable=no-name-in-module
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable
+from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
 
 if TYPE_CHECKING:
-    from mergedbots.botmerger.models import MergedBot, MergedChannel
+    from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 
@@ -18,6 +18,10 @@ class BotMerger(ABC):
     in this library. Almost all the methods of almost all the other classes in this library are just a facade for
     methods of this class.
     """
+
+    @abstractmethod
+    def trigger_bot(self, bot_uuid: UUID4, message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponse":
+        """Find a bot by its alias and trigger it with a message."""
 
     @abstractmethod
     def create_bot(

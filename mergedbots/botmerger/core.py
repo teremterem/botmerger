@@ -7,9 +7,9 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler
+from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponse
 from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
-from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser
+from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
 
 ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
@@ -27,6 +27,16 @@ class BotMergerBase(BotMerger):
     def __init__(self) -> None:
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
+
+    def trigger_bot(self, bot_uuid: UUID4, message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponse":
+        """Trigger a bot with a message."""
+        handler = self._single_turn_handlers[bot_uuid]
+        if handler:
+            asyncio.create_task(handler(SingleTurnContext()))
+        # TODO TODO TODO
+        return BotResponse()
+
+    # TODO TODO TODO def trigger_bot_by_alias()
 
     def create_bot(
         self,

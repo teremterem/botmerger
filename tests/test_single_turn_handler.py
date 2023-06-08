@@ -1,6 +1,7 @@
 # pylint: disable=protected-access,unused-argument
 """Tests for the `register_local_single_turn_handler` method of BotMerger."""
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -73,3 +74,23 @@ def test_register_local_single_turn_handler_method() -> None:
     test_bot = merger.create_bot("test_bot", single_turn=dummy_object._dummy_bot_method)
 
     assert merger._single_turn_handlers == {test_bot.uuid: dummy_object._dummy_bot_method}
+
+
+@pytest.mark.asyncio
+async def test_trigger_bot() -> None:
+    """Test the `trigger_bot` method."""
+    merger = InMemoryBotMerger()
+
+    mock = MagicMock()
+    mock.assert_not_called()
+
+    @(await merger.create_bot_async("test_bot"))
+    async def _dummy_bot_func(context: SingleTurnContext) -> None:
+        """Dummy bot function."""
+        mock()
+
+    # TODO TODO TODO
+    _dummy_bot_func.bot.trigger(None)
+
+    await asyncio.sleep(0.1)  # TODO TODO TODO wait on BotResponse instead
+    mock.assert_called_once()

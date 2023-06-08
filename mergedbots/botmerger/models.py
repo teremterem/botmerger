@@ -27,7 +27,7 @@ class MergedBot(MergedParticipant):
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        return self.merger.trigger_bot(self, request)
+        return self.merger.trigger_bot(self.uuid, request)
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
