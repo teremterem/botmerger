@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponse
+from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses
 from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
 from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
 
@@ -28,14 +28,22 @@ class BotMergerBase(BotMerger):
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
 
-    def trigger_bot(self, bot_uuid: UUID4, message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponse":
+    def trigger_bot(self, bot: MergedBot, message: Union[MergedMessage, MessageEnvelope]) -> BotResponses:
         """Trigger a bot with a message."""
-        handler = self._single_turn_handlers[bot_uuid]
-        if handler:
-            asyncio.create_task(handler(SingleTurnContext()))
-        # TODO TODO TODO
-        return BotResponse()
+        handler = self._single_turn_handlers[bot.uuid]
+        bot_responses = BotResponses()
+        context = SingleTurnContext(bot, message, bot_responses)
+        asyncio.create_task(self._run_single_turn_handler(handler, context, bot_responses))
+        return bot_responses
 
+    async def _run_single_turn_handler(
+        self, handler: SingleTurnHandler, context: SingleTurnContext, bot_responses: BotResponses
+    ) -> None:
+        # TODO propagate exceptions to BotResponses
+        await handler(context)
+        bot_responses._response_queue.put_nowait(BotResponses._END_OF_RESPONSES)
+
+    # TODO TODO TODO def trigger_bot_by_uuid()
     # TODO TODO TODO def trigger_bot_by_alias()
 
     def create_bot(

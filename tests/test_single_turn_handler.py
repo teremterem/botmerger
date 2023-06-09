@@ -81,16 +81,33 @@ async def test_trigger_bot() -> None:
     """Test the `trigger_bot` method."""
     merger = InMemoryBotMerger()
 
-    mock = MagicMock()
-    mock.assert_not_called()
+    call_mock = MagicMock()
+    call_mock.assert_not_called()
+
+    # TODO TODO TODO don't use nones, pass around real messages
 
     @(await merger.create_bot_async("test_bot"))
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
-        mock()
+        call_mock()
+        context.yield_response(None)
+        call_mock()
+        context.yield_response(None)
+        call_mock()
+        context.yield_response(None)
+        call_mock()
 
-    # TODO TODO TODO
-    _dummy_bot_func.bot.trigger(None)
+    responses = _dummy_bot_func.bot.trigger(None)
 
-    await asyncio.sleep(0.1)  # TODO TODO TODO wait on BotResponse instead
-    mock.assert_called_once()
+    call_mock.assert_not_called()
+    assert not responses.responses_so_far
+
+    await anext(responses)
+
+    # even though we only requested one response all responses were calculated already (the rest are in the queue)
+    assert call_mock.call_count == 4
+    assert len(responses.responses_so_far) == 1
+
+    assert len(await responses.get_all_responses()) == 3
+    assert call_mock.call_count == 4
+    assert len(responses.responses_so_far) == 3

@@ -4,7 +4,7 @@ from typing import Any, Union, Optional
 
 from pydantic import Field, BaseModel
 
-from mergedbots.botmerger.base import MergedObject, SingleTurnHandler, BotResponse
+from mergedbots.botmerger.base import MergedObject, SingleTurnHandler, BotResponses
 
 
 class MergedParticipant(MergedObject):
@@ -22,12 +22,12 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
-    def trigger(self, request: Union["MergedMessage", "MessageEnvelope"]) -> BotResponse:
+    def trigger(self, request: Union["MergedMessage", "MessageEnvelope"]) -> BotResponses:
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        return self.merger.trigger_bot(self.uuid, request)
+        return self.merger.trigger_bot(self, request)
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
@@ -78,6 +78,8 @@ class MessageEnvelope(BaseModel):
     :param show_typing_indicator: whether to show a typing indicator after this message is dispatched (and
            until the next message) TODO improve this description
     """
+
+    # TODO `copy_on_model_validation` is not set to "none" by default - create one more base class and set it there ?
 
     message: MergedMessage
     show_typing_indicator: bool

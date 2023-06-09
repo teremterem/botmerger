@@ -1,7 +1,8 @@
 # pylint: disable=no-name-in-module
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union
+from asyncio import Queue
+from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
@@ -20,7 +21,7 @@ class BotMerger(ABC):
     """
 
     @abstractmethod
-    def trigger_bot(self, bot_uuid: UUID4, message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponse":
+    def trigger_bot(self, bot: "MergedBot", message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponses":
         """Find a bot by its alias and trigger it with a message."""
 
     @abstractmethod
@@ -110,9 +111,41 @@ class MergedObject(BaseModel):
         return hash(self.uuid)
 
 
+class BotResponses:
+    _END_OF_RESPONSES = object()
+
+    def __init__(self) -> None:
+        self.responses_so_far: List[MessageEnvelope] = []
+        self._response_queue: "Optional[Queue[MessageEnvelope]]" = Queue()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._response_queue is None:
+            raise StopAsyncIteration
+
+        response = await self._response_queue.get()
+        if response is self._END_OF_RESPONSES:
+            self._response_queue = None
+            raise StopAsyncIteration
+
+        self.responses_so_far.append(response)
+        return response
+
+    async def get_all_responses(self) -> "List[MessageEnvelope]":
+        # TODO provide a way to filter out responses that are not visible to bots ?
+        # make sure all responses are fetched
+        async for _ in self:
+            pass
+        return self.responses_so_far
+
+
 class SingleTurnContext:
-    """TODO"""
+    def __init__(self, bot: "MergedBot", request: "MergedMessage", bot_responses: BotResponses) -> None:
+        self.bot = bot
+        self.request = request
+        self._bot_responses = bot_responses
 
-
-class BotResponse:
-    """TODO"""
+    def yield_response(self, response: "MessageEnvelope") -> None:
+        self._bot_responses._response_queue.put_nowait(response)
