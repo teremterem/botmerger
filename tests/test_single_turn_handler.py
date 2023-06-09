@@ -7,7 +7,7 @@ import pytest
 
 from mergedbots.botmerger.base import SingleTurnContext
 from mergedbots.botmerger.core import InMemoryBotMerger
-from mergedbots.botmerger.errors import BotAliasTakenError
+from mergedbots.botmerger.errors import BotAliasTakenError, ErrorWrapper
 
 
 def test_register_local_single_turn_handlers() -> None:
@@ -111,3 +111,40 @@ async def test_trigger_bot() -> None:
     assert len(await responses.get_all_responses()) == 3
     assert call_mock.call_count == 4
     assert len(responses.responses_so_far) == 3
+
+
+@pytest.mark.asyncio
+async def test_trigger_bot_exception() -> None:
+    """Test the `trigger_bot` method when the bot raises an exception."""
+    merger = InMemoryBotMerger()
+
+    call_mock = MagicMock()
+    call_mock.assert_not_called()
+
+    # TODO TODO TODO don't use nones, pass around real messages
+
+    @(await merger.create_bot_async("test_bot"))
+    async def _dummy_bot_func(context: SingleTurnContext) -> None:
+        """Dummy bot function."""
+        call_mock()
+        context.yield_response(None)
+        call_mock()
+        raise ValueError("test")
+
+    responses = _dummy_bot_func.bot.trigger(None)
+
+    call_mock.assert_not_called()
+    assert not responses.responses_so_far
+
+    await anext(responses)
+
+    # even though we only requested one response all responses were calculated already (the rest are in the queue)
+    assert call_mock.call_count == 2
+    assert len(responses.responses_so_far) == 1
+
+    with pytest.raises(ErrorWrapper) as exc_info:
+        await responses.get_all_responses()
+    assert isinstance(exc_info.value.error, ValueError)
+
+    assert call_mock.call_count == 2
+    assert len(responses.responses_so_far) == 1
