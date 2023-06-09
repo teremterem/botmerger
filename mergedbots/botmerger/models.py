@@ -66,7 +66,6 @@ class MergedMessage(MergedObject):
 
     sender: MergedParticipant
     content: Union[str, Any]
-    is_visible_to_bots: bool
 
 
 class MessageEnvelope(BaseModel):
