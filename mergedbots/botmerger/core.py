@@ -41,7 +41,7 @@ class BotMergerBase(BotMerger):
     ) -> None:
         # TODO propagate exceptions to BotResponses
         await handler(context)
-        bot_responses._response_queue.put_nowait(BotResponses._END_OF_RESPONSES)
+        bot_responses._response_queue.put_nowait(bot_responses._END_OF_RESPONSES)
 
     # TODO TODO TODO def trigger_bot_by_uuid()
     # TODO TODO TODO def trigger_bot_by_alias()
