@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
 
+from mergedbots.botmerger.errors import ErrorWrapper
+
 if TYPE_CHECKING:
     from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
 
@@ -116,7 +118,7 @@ class BotResponses:
 
     def __init__(self) -> None:
         self.responses_so_far: List[MessageEnvelope] = []
-        self._response_queue: "Optional[Queue[MessageEnvelope]]" = Queue()
+        self._response_queue: "Optional[Queue[Union[MessageEnvelope, object, Exception]]]" = Queue()
 
     def __aiter__(self):
         return self
@@ -126,6 +128,10 @@ class BotResponses:
             raise StopAsyncIteration
 
         response = await self._response_queue.get()
+
+        if isinstance(response, Exception):
+            raise ErrorWrapper(error=response)
+
         if response is self._END_OF_RESPONSES:
             self._response_queue = None
             raise StopAsyncIteration

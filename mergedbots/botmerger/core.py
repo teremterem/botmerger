@@ -39,9 +39,13 @@ class BotMergerBase(BotMerger):
     async def _run_single_turn_handler(
         self, handler: SingleTurnHandler, context: SingleTurnContext, bot_responses: BotResponses
     ) -> None:
-        # TODO propagate exceptions to BotResponses
-        await handler(context)
-        bot_responses._response_queue.put_nowait(bot_responses._END_OF_RESPONSES)
+        try:
+            await handler(context)
+        except Exception as exc:
+            logger.debug(exc, exc_info=exc)
+            bot_responses._response_queue.put_nowait(exc)
+        finally:
+            bot_responses._response_queue.put_nowait(bot_responses._END_OF_RESPONSES)
 
     # TODO TODO TODO def trigger_bot_by_uuid()
     # TODO TODO TODO def trigger_bot_by_alias()
