@@ -189,10 +189,16 @@ class SingleTurnContext:
         Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
         `show_typing_indicator` in the response that was passed in.
         """
+        # pylint: disable=import-outside-toplevel
         from botmerger.models import MergedMessage, MessageEnvelope
 
         # TODO are we sure all these conditions make sense ? what is our philosophy when it comes to relations between
         #  channels and messages as well as between messages themselves ?
+        #  HERE IS WHAT NEEDS TO BE CORRECTED:
+        #    - if `response` belong to a different channel than a cloned version of `response` should be created with
+        #      `channel` set to `self.request.channel`
+        #    - but what if we start to maintain some sort of message history and `response` belongs to the same channel
+        #      as `self.request` but it's position in the history is different ? should we clone it then ?
         if isinstance(response, MessageEnvelope):
             if show_typing_indicator is not None and response.show_typing_indicator != show_typing_indicator:
                 # we need to create a new MessageEnvelope object with a different value of `show_typing_indicator`
