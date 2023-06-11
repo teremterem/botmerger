@@ -125,18 +125,23 @@ class BotResponses:
     def __init__(self) -> None:
         self.responses_so_far: List[MessageEnvelope] = []
         self._response_queue: "Optional[Queue[Union[MessageEnvelope, object, Exception]]]" = Queue()
+        self._error: Optional[ErrorWrapper] = None
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
+        if self._error:
+            raise self._error
+
         if self._response_queue is None:
             raise StopAsyncIteration
 
         response = await self._response_queue.get()
 
         if isinstance(response, Exception):
-            raise ErrorWrapper(error=response)
+            self._error = ErrorWrapper(error=response)
+            raise self._error
 
         if response is self._END_OF_RESPONSES:
             self._response_queue = None
