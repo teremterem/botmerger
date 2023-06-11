@@ -185,6 +185,7 @@ class SingleTurnContext:
         `show_typing_indicator` in the response that was passed in.
         """
         from botmerger.models import MessageEnvelope
+
         if isinstance(response, MessageEnvelope):
             if show_typing_indicator is not None and response.show_typing_indicator != show_typing_indicator:
                 # we need to create a new MessageEnvelope object with a different value of `show_typing_indicator`
@@ -192,4 +193,5 @@ class SingleTurnContext:
                 response.show_typing_indicator = show_typing_indicator
         else:
             response = MessageEnvelope(response, show_typing_indicator=show_typing_indicator or False)
+
         self._bot_responses._response_queue.put_nowait(response)
