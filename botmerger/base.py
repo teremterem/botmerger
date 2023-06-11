@@ -184,7 +184,9 @@ class SingleTurnContext:
         self.request = request
         self._bot_responses = bot_responses
 
-    def yield_response(self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs) -> None:
+    async def yield_response(
+        self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs
+    ) -> None:
         """
         Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
         `show_typing_indicator` in the response that was passed in.
@@ -207,7 +209,7 @@ class SingleTurnContext:
         else:
             if not isinstance(response, MergedMessage):
                 # `response` is plain message content
-                response = self.merger.create_message(
+                response = await self.merger.create_message(
                     channel=self.request.channel,
                     sender=self.bot,
                     content=response,

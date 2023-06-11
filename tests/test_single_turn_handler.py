@@ -90,11 +90,11 @@ async def test_trigger_bot() -> None:
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
         call_mock()
-        context.yield_response("response 1")
+        await context.yield_response("response 1")
         call_mock()
-        context.yield_response("response 2")
+        await context.yield_response("response 2")
         call_mock()
-        context.yield_response({"response": "3"})
+        await context.yield_response({"response": "3"})
         call_mock()
 
     request = await (
@@ -135,7 +135,7 @@ async def test_trigger_bot_exception() -> None:
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
         call_mock()
-        context.yield_response("response 1")
+        await context.yield_response("response 1")
         call_mock()
         raise ValueError("test")
 
