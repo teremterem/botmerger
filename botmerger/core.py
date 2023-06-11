@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses
+from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses, MessageContent
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
 from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
 
@@ -28,26 +28,23 @@ class BotMergerBase(BotMerger):
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
 
-    def trigger_bot(self, bot: MergedBot, message: Union[MergedMessage, MessageEnvelope]) -> BotResponses:
-        """Trigger a bot with a message."""
+    def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
         bot_responses = BotResponses()
-        context = SingleTurnContext(bot, message, bot_responses)
-        asyncio.create_task(self._run_single_turn_handler(handler, context, bot_responses))
+        context = SingleTurnContext(bot, request, bot_responses)
+        asyncio.create_task(self._run_single_turn_handler(handler, context))
         return bot_responses
 
     # noinspection PyProtectedMember
-    async def _run_single_turn_handler(
-        self, handler: SingleTurnHandler, context: SingleTurnContext, bot_responses: BotResponses
-    ) -> None:
+    async def _run_single_turn_handler(self, handler: SingleTurnHandler, context: SingleTurnContext) -> None:
         # pylint: disable=broad-except,protected-access
         try:
             await handler(context)
         except Exception as exc:
             logger.debug(exc, exc_info=exc)
-            bot_responses._response_queue.put_nowait(exc)
+            context._bot_responses._response_queue.put_nowait(exc)
         finally:
-            bot_responses._response_queue.put_nowait(bot_responses._END_OF_RESPONSES)
+            context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
 
     # TODO TODO TODO def trigger_bot_by_uuid()
     # TODO TODO TODO def trigger_bot_by_alias()
@@ -60,10 +57,6 @@ class BotMergerBase(BotMerger):
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
-        """
-        Create a bot. This version of bot creation function is meant to be called outside an async context (for ex.
-        as a decorator to single-turn and multi-turn handler functions).
-        """
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
             self.create_bot_async(alias=alias, name=name, description=description, single_turn=single_turn, **kwargs)
@@ -77,7 +70,6 @@ class BotMergerBase(BotMerger):
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
-        """Create a bot while inside an async context."""
         if await self._get_bot(alias):
             raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
 
@@ -92,7 +84,6 @@ class BotMergerBase(BotMerger):
         return bot
 
     def register_local_single_turn_handler(self, bot: "MergedBot", handler: SingleTurnHandler) -> None:
-        """Register a local function as a single-turn handler for a bot."""
         self._single_turn_handlers[bot.uuid] = handler
         try:
             handler.bot = bot
@@ -101,7 +92,6 @@ class BotMergerBase(BotMerger):
             logger.debug("could not set attributes on %r", handler)
 
     async def find_bot(self, alias: str) -> MergedBot:
-        """Fetch a bot by its alias."""
         bot = await self._get_bot(alias)
         if not bot:
             raise BotNotFoundError(f"bot with alias {alias!r} does not exist")
@@ -114,15 +104,9 @@ class BotMergerBase(BotMerger):
         user_display_name: str,
         **kwargs,
     ) -> MergedChannel:
-        """
-        Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
-        used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
-        exist and is ignored if the channel already exists.
-        """
         key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
-        channel = await self._get_object(key)
-        self._assert_correct_obj_type_or_none(channel, MergedChannel, key)
+        channel = await self._get_correct_object(key, MergedChannel)
 
         if not channel:
             user = MergedUser(merger=self, name=user_display_name, **kwargs)
@@ -139,6 +123,21 @@ class BotMergerBase(BotMerger):
 
         return channel
 
+    async def create_message(
+        self, channel: MergedChannel, content: MessageContent, show_typing_indicator: bool, **kwargs
+    ) -> MessageEnvelope:
+        message = MergedMessage(
+            merger=self,
+            channel=channel,
+            content=content,
+            **kwargs,
+        )
+        await self._register_merged_object(message)
+        return MessageEnvelope(
+            message=message,
+            show_typing_indicator=show_typing_indicator,
+        )
+
     @abstractmethod
     async def _register_object(self, key: ObjectKey, value: Any) -> None:
         """Register an object."""
@@ -147,15 +146,18 @@ class BotMergerBase(BotMerger):
     async def _get_object(self, key: ObjectKey) -> Optional[Any]:
         """Get an object by its key."""
 
+    async def _get_correct_object(self, key: ObjectKey, expected_type: Type) -> Optional[Any]:
+        """
+        Get an object by its key and assert that either there is no object (None) or the object is of the expected
+        type.
+        """
+        obj = await self._get_object(key)
+        self._assert_correct_obj_type_or_none(obj, expected_type, key)
+        return obj
+
     async def _register_merged_object(self, obj: MergedObject) -> None:
         """Register a merged object."""
         await self._register_object(obj.uuid, obj)
-
-    async def _get_merged_object(self, uuid: UUID4) -> Optional[MergedObject]:
-        """Get a merged object by its uuid."""
-        obj = await self._get_object(uuid)
-        self._assert_correct_obj_type_or_none(obj, MergedObject, uuid)
-        return obj
 
     async def _register_bot(self, bot: MergedBot) -> None:
         """Register a bot."""
@@ -164,10 +166,7 @@ class BotMergerBase(BotMerger):
 
     async def _get_bot(self, alias: str) -> Optional[MergedBot]:
         """Get a bot by its alias."""
-        key = self._generate_bot_key(alias)
-        bot = await self._get_object(key)
-        self._assert_correct_obj_type_or_none(bot, MergedBot, key)
-        return bot
+        return await self._get_correct_object(self._generate_bot_key(alias), MergedBot)
 
     # noinspection PyMethodMayBeStatic
     def _generate_bot_key(self, alias: str) -> Tuple[str, str]:

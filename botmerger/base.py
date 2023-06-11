@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
+MessageContent = Union[str, Any]
 
 
 class BotMerger(ABC):
@@ -23,8 +24,8 @@ class BotMerger(ABC):
     """
 
     @abstractmethod
-    def trigger_bot(self, bot: "MergedBot", message: Union["MergedMessage", "MessageEnvelope"]) -> "BotResponses":
-        """Find a bot by its alias and trigger it with a message."""
+    def trigger_bot(self, bot: "MergedBot", request: "MergedMessage") -> "BotResponses":
+        """Find a bot by its alias and trigger it with a request."""
 
     @abstractmethod
     def create_bot(
@@ -72,6 +73,12 @@ class BotMerger(ABC):
         used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
         exist and is ignored if the channel already exists.
         """
+
+    @abstractmethod
+    async def create_message(
+        self, channel: "MergedChannel", content: MessageContent, show_typing_indicator: bool, **kwargs
+    ) -> "MessageEnvelope":
+        """Create a message for a given channel and wrap it in an envelope."""
 
 
 class MergedObject(BaseModel):
@@ -123,7 +130,7 @@ class BotResponses:
     _END_OF_RESPONSES = object()
 
     def __init__(self) -> None:
-        self.responses_so_far: List[MessageEnvelope] = []
+        self.responses_so_far: "List[MessageEnvelope]" = []
         self._response_queue: "Optional[Queue[Union[MessageEnvelope, object, Exception]]]" = Queue()
         self._error: Optional[ErrorWrapper] = None
 
@@ -172,8 +179,12 @@ class SingleTurnContext:
         self.request = request
         self._bot_responses = bot_responses
 
-    def yield_response(self, response: "MessageEnvelope") -> None:
+    def yield_response(self, response: "Union[MergedMessage, MessageEnvelope]") -> None:
         """Yield a response to the request."""
+        from botmerger.models import MergedMessage, MessageEnvelope
+
+        if isinstance(response, MergedMessage):
+            response = MessageEnvelope(response)
         self._bot_responses._response_queue.put_nowait(response)
 
     # TODO add a method to yield a response that just accepts a text and a typing indicator flag value
