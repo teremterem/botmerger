@@ -36,6 +36,7 @@ class BotMergerBase(BotMerger):
         asyncio.create_task(self._run_single_turn_handler(handler, context, bot_responses))
         return bot_responses
 
+    # noinspection PyProtectedMember
     async def _run_single_turn_handler(
         self, handler: SingleTurnHandler, context: SingleTurnContext, bot_responses: BotResponses
     ) -> None:

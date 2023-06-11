@@ -153,6 +153,7 @@ class BotResponses:
         return self.responses_so_far
 
 
+# noinspection PyProtectedMember
 class SingleTurnContext:
     # pylint: disable=protected-access
     """
