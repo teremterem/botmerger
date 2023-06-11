@@ -5,9 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mergedbots.botmerger.base import SingleTurnContext
-from mergedbots.botmerger.core import InMemoryBotMerger
-from mergedbots.botmerger.errors import BotAliasTakenError, ErrorWrapper
+from botmerger.base import SingleTurnContext
+from botmerger.core import InMemoryBotMerger
+from botmerger.errors import BotAliasTakenError, ErrorWrapper
 
 
 def test_register_local_single_turn_handlers() -> None:

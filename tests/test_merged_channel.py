@@ -1,7 +1,7 @@
 """Tests for the `MergedChannel` class."""
 import pytest
 
-from mergedbots.botmerger.core import InMemoryBotMerger
+from botmerger.core import InMemoryBotMerger
 
 
 @pytest.mark.asyncio

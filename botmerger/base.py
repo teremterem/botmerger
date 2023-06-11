@@ -7,10 +7,10 @@ from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
 
-from mergedbots.botmerger.errors import ErrorWrapper
+from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
+    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 
@@ -114,6 +114,12 @@ class MergedObject(BaseModel):
 
 
 class BotResponses:
+    """
+    A class that represents a stream of responses from a bot. It is an async iterator that yields `MessageEnvelope`
+    objects. It also has a method `get_all_responses` that will block until all the responses are received and then
+    return them as a list.
+    """
+
     _END_OF_RESPONSES = object()
 
     def __init__(self) -> None:
@@ -140,7 +146,7 @@ class BotResponses:
         return response
 
     async def get_all_responses(self) -> "List[MessageEnvelope]":
-        # TODO provide a way to filter out responses that are not visible to bots ?
+        """Wait until all the responses are received and return them as a list."""
         # make sure all responses are fetched
         async for _ in self:
             pass
@@ -148,10 +154,20 @@ class BotResponses:
 
 
 class SingleTurnContext:
+    # pylint: disable=protected-access
+    """
+    A context object that is passed to a single turn handler function. It is meant to be used as a facade for the
+    `MergedBot` and `MergedMessage` objects. It also has a method `yield_response` that is meant to be used by the
+    single turn handler function to yield a response to the request.
+    """
+
     def __init__(self, bot: "MergedBot", request: "MergedMessage", bot_responses: BotResponses) -> None:
         self.bot = bot
         self.request = request
         self._bot_responses = bot_responses
 
     def yield_response(self, response: "MessageEnvelope") -> None:
+        """Yield a response to the request."""
         self._bot_responses._response_queue.put_nowait(response)
+
+    # TODO add a method to yield a response that just accepts a text and a typing indicator flag value

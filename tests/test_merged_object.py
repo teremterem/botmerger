@@ -2,8 +2,8 @@
 import pytest
 from pydantic import ValidationError
 
-from mergedbots.botmerger.base import MergedObject
-from mergedbots.botmerger.core import InMemoryBotMerger
+from botmerger.base import MergedObject
+from botmerger.core import InMemoryBotMerger
 
 
 def test_merged_object() -> None:

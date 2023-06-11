@@ -7,9 +7,9 @@ from typing import Any, Optional, Tuple, Type, Dict, Union
 
 from pydantic import UUID4
 
-from mergedbots.botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses
-from mergedbots.botmerger.errors import BotAliasTakenError, BotNotFoundError
-from mergedbots.botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
+from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses
+from botmerger.errors import BotAliasTakenError, BotNotFoundError
+from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
 
 ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
@@ -39,6 +39,7 @@ class BotMergerBase(BotMerger):
     async def _run_single_turn_handler(
         self, handler: SingleTurnHandler, context: SingleTurnContext, bot_responses: BotResponses
     ) -> None:
+        # pylint: disable=broad-except,protected-access
         try:
             await handler(context)
         except Exception as exc:

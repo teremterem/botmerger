@@ -4,7 +4,7 @@ from typing import Any, Union, Optional
 
 from pydantic import Field, BaseModel
 
-from mergedbots.botmerger.base import MergedObject, SingleTurnHandler, BotResponses
+from botmerger.base import MergedObject, SingleTurnHandler, BotResponses
 
 
 class MergedParticipant(MergedObject):
