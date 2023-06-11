@@ -2,6 +2,7 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
+from copy import copy
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
+MessageType = Union["MergedMessage", "MessageEnvelope"]
 MessageContent = Union[str, Any]
 
 
@@ -75,10 +77,8 @@ class BotMerger(ABC):
         """
 
     @abstractmethod
-    async def create_message(
-        self, channel: "MergedChannel", content: MessageContent, show_typing_indicator: bool, **kwargs
-    ) -> "MessageEnvelope":
-        """Create a message for a given channel and wrap it in an envelope."""
+    async def create_message(self, channel: "MergedChannel", content: MessageContent, **kwargs) -> "MergedMessage":
+        """Create a message for within a given channel."""
 
 
 class MergedObject(BaseModel):
@@ -179,12 +179,17 @@ class SingleTurnContext:
         self.request = request
         self._bot_responses = bot_responses
 
-    def yield_response(self, response: "Union[MergedMessage, MessageEnvelope]") -> None:
-        """Yield a response to the request."""
-        from botmerger.models import MergedMessage, MessageEnvelope
-
-        if isinstance(response, MergedMessage):
-            response = MessageEnvelope(response)
+    def yield_response(self, response: MessageType, show_typing_indicator: Optional[bool] = None) -> None:
+        """
+        Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
+        `show_typing_indicator` in the response that was passed in.
+        """
+        from botmerger.models import MessageEnvelope
+        if isinstance(response, MessageEnvelope):
+            if show_typing_indicator is not None and response.show_typing_indicator != show_typing_indicator:
+                # we need to create a new MessageEnvelope object with a different value of `show_typing_indicator`
+                response = copy(response)
+                response.show_typing_indicator = show_typing_indicator
+        else:
+            response = MessageEnvelope(response, show_typing_indicator=show_typing_indicator or False)
         self._bot_responses._response_queue.put_nowait(response)
-
-    # TODO add a method to yield a response that just accepts a text and a typing indicator flag value

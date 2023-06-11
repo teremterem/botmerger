@@ -9,7 +9,7 @@ from pydantic import UUID4
 
 from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses, MessageContent
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
-from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MessageEnvelope
+from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage
 
 ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
@@ -123,9 +123,7 @@ class BotMergerBase(BotMerger):
 
         return channel
 
-    async def create_message(
-        self, channel: MergedChannel, content: MessageContent, show_typing_indicator: bool, **kwargs
-    ) -> MessageEnvelope:
+    async def create_message(self, channel: MergedChannel, content: MessageContent, **kwargs) -> MergedMessage:
         message = MergedMessage(
             merger=self,
             channel=channel,
@@ -133,10 +131,7 @@ class BotMergerBase(BotMerger):
             **kwargs,
         )
         await self._register_merged_object(message)
-        return MessageEnvelope(
-            message=message,
-            show_typing_indicator=show_typing_indicator,
-        )
+        return message
 
     @abstractmethod
     async def _register_object(self, key: ObjectKey, value: Any) -> None:

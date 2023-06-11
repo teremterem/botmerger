@@ -58,18 +58,11 @@ class MergedChannel(MergedObject):
     parent_channel: Optional["MergedChannel"] = None
     originator_channel: Optional["MergedChannel"] = None
 
-    async def new_message(
-        self, content: MessageContent, show_typing_indicator: bool = False, **kwargs
-    ) -> "MessageEnvelope":
+    async def new_message(self, content: MessageContent, **kwargs) -> "MergedMessage":
         """
         Create a new message in this channel. Returns a message envelope that can be used to send the message.
         """
-        return await self.merger.create_message(
-            self,
-            content=content,
-            show_typing_indicator=show_typing_indicator,
-            **kwargs,
-        )
+        return await self.merger.create_message(self, content, **kwargs)
 
 
 class MergedMessage(MergedObject):
@@ -88,7 +81,7 @@ class MessageEnvelope:
 
     :param message: the message in this envelope
     :param show_typing_indicator: whether to show a typing indicator after this message is dispatched (and
-           until the next message) TODO improve this description ?
+           until the next message)
     """
 
     def __init__(self, message: MergedMessage, show_typing_indicator: bool = False):
