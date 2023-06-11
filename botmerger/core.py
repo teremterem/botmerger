@@ -33,6 +33,7 @@ class BotMergerBase(BotMerger):
         bot_responses = BotResponses()
         context = SingleTurnContext(
             merger=self,
+            channel=request.channel,
             bot=bot,
             request=request,
             bot_responses=bot_responses,
@@ -50,9 +51,6 @@ class BotMergerBase(BotMerger):
             context._bot_responses._response_queue.put_nowait(exc)
         finally:
             context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
-
-    # TODO TODO TODO def trigger_bot_by_uuid()
-    # TODO TODO TODO def trigger_bot_by_alias()
 
     def create_bot(
         self,

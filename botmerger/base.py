@@ -169,7 +169,7 @@ class BotResponses:
 
 # noinspection PyProtectedMember
 class SingleTurnContext:
-    # pylint: disable=protected-access
+    # pylint: disable=import-outside-toplevel,protected-access,too-many-arguments
     """
     A context object that is passed to a single turn handler function. It is meant to be used as a facade for the
     `MergedBot` and `MergedMessage` objects. It also has a method `yield_response` that is meant to be used by the
@@ -177,12 +177,34 @@ class SingleTurnContext:
     """
 
     def __init__(
-        self, merger: BotMerger, bot: "MergedBot", request: "MergedMessage", bot_responses: BotResponses
+        self,
+        merger: BotMerger,
+        channel: "MergedChannel",
+        bot: "MergedBot",
+        request: "MergedMessage",
+        bot_responses: BotResponses,
     ) -> None:
         self.merger = merger
+        self.channel = channel
         self.bot = bot
         self.request = request
         self._bot_responses = bot_responses
+
+    async def trigger_another_bot(self, bot: Union["MergedBot", str], request: MessageType) -> BotResponses:
+        """Trigger another bot with a request and return a stream of responses from that bot."""
+        from botmerger.models import MergedMessage, MessageEnvelope
+
+        if isinstance(bot, str):
+            bot = await self.merger.find_bot(bot)
+
+        if isinstance(request, MessageEnvelope):
+            return bot.trigger(request.message)
+        if isinstance(request, MergedMessage):
+            return bot.trigger(request)
+
+        # this is neither `MessageEnvelope` nor `MergedMessage` so we assume it is `MessageContent`
+        request = await self.channel.new_message(self.bot, request)
+        return bot.trigger(request)
 
     async def yield_response(
         self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs
@@ -191,7 +213,6 @@ class SingleTurnContext:
         Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
         `show_typing_indicator` in the response that was passed in.
         """
-        # pylint: disable=import-outside-toplevel
         from botmerger.models import MergedMessage, MessageEnvelope
 
         # TODO are we sure all these conditions make sense ? what is our philosophy when it comes to relations between
@@ -210,7 +231,7 @@ class SingleTurnContext:
             if not isinstance(response, MergedMessage):
                 # `response` is plain message content
                 response = await self.merger.create_message(
-                    channel=self.request.channel,
+                    channel=self.channel,
                     sender=self.bot,
                     content=response,
                     **kwargs,

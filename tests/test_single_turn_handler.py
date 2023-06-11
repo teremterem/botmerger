@@ -84,8 +84,6 @@ async def test_trigger_bot() -> None:
     call_mock = MagicMock()
     call_mock.assert_not_called()
 
-    # TODO TODO TODO don't use nones, pass around real messages
-
     @(await merger.create_bot_async("test_bot"))
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
@@ -128,8 +126,6 @@ async def test_trigger_bot_exception() -> None:
 
     call_mock = MagicMock()
     call_mock.assert_not_called()
-
-    # TODO TODO TODO don't use nones, pass around real messages
 
     @(await merger.create_bot_async("test_bot"))
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
