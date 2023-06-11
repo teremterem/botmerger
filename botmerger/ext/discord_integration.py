@@ -42,8 +42,6 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                     await discord_message.channel.send(chunk)
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            # if isinstance(exc, ErrorWrapper):
-            #     exc = exc.error
             logger.error("Error while processing a Discord message: %s", exc, exc_info=exc)
             for chunk in get_text_chunks(format_error_with_full_tb(exc), DISCORD_MSG_LIMIT):
                 await discord_message.channel.send(f"```\n{chunk}\n```")
