@@ -58,11 +58,16 @@ class MergedChannel(MergedObject):
     parent_channel: Optional["MergedChannel"] = None
     originator_channel: Optional["MergedChannel"] = None
 
-    async def new_message(self, content: MessageContent, **kwargs) -> "MergedMessage":
+    async def new_message_from_owner(self, content: MessageContent, **kwargs) -> "MergedMessage":
         """
         Create a new message in this channel. Returns a message envelope that can be used to send the message.
         """
-        return await self.merger.create_message(self, content, **kwargs)
+        return await self.merger.create_message(
+            channel=self,
+            sender=self.owner,
+            content=content,
+            **kwargs,
+        )
 
 
 class MergedMessage(MergedObject):

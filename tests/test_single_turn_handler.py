@@ -90,14 +90,22 @@ async def test_trigger_bot() -> None:
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
         call_mock()
-        context.yield_response(None)
+        context.yield_response("response 1")
         call_mock()
-        context.yield_response(None)
+        context.yield_response("response 2")
         call_mock()
-        context.yield_response(None)
+        context.yield_response({"response": "3"})
         call_mock()
 
-    responses = _dummy_bot_func.bot.trigger(None)
+    request = await (
+        await merger.find_or_create_user_channel(
+            channel_type="test_channel_type",
+            channel_id="test_channel_id",
+            user_display_name="Test User",
+        )
+    ).new_message_from_owner("test request")
+
+    responses = _dummy_bot_func.bot.trigger(request)
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
@@ -127,11 +135,19 @@ async def test_trigger_bot_exception() -> None:
     async def _dummy_bot_func(context: SingleTurnContext) -> None:
         """Dummy bot function."""
         call_mock()
-        context.yield_response(None)
+        context.yield_response("response 1")
         call_mock()
         raise ValueError("test")
 
-    responses = _dummy_bot_func.bot.trigger(None)
+    request = await (
+        await merger.find_or_create_user_channel(
+            channel_type="test_channel_type",
+            channel_id="test_channel_id",
+            user_display_name="Test User",
+        )
+    ).new_message_from_owner("test request")
+
+    responses = _dummy_bot_func.bot.trigger(request)
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far

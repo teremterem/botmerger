@@ -11,11 +11,11 @@ from pydantic import BaseModel, UUID4, Field
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope
+    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope, MergedParticipant
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
-MessageType = Union["MergedMessage", "MessageEnvelope"]
 MessageContent = Union[str, Any]
+MessageType = Union["MessageEnvelope", "MergedMessage", MessageContent]
 
 
 class BotMerger(ABC):
@@ -77,8 +77,10 @@ class BotMerger(ABC):
         """
 
     @abstractmethod
-    async def create_message(self, channel: "MergedChannel", content: MessageContent, **kwargs) -> "MergedMessage":
-        """Create a message for within a given channel."""
+    async def create_message(
+        self, channel: "MergedChannel", sender: "MergedParticipant", content: "MessageContent", **kwargs
+    ) -> "MergedMessage":
+        """Create a new message in a given channel."""
 
 
 class MergedObject(BaseModel):
@@ -174,24 +176,37 @@ class SingleTurnContext:
     single turn handler function to yield a response to the request.
     """
 
-    def __init__(self, bot: "MergedBot", request: "MergedMessage", bot_responses: BotResponses) -> None:
+    def __init__(
+        self, merger: BotMerger, bot: "MergedBot", request: "MergedMessage", bot_responses: BotResponses
+    ) -> None:
+        self.merger = merger
         self.bot = bot
         self.request = request
         self._bot_responses = bot_responses
 
-    def yield_response(self, response: MessageType, show_typing_indicator: Optional[bool] = None) -> None:
+    def yield_response(self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs) -> None:
         """
         Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
         `show_typing_indicator` in the response that was passed in.
         """
-        from botmerger.models import MessageEnvelope
+        from botmerger.models import MergedMessage, MessageEnvelope
 
+        # TODO are we sure all these conditions make sense ? what is our philosophy when it comes to relations between
+        #  channels and messages as well as between messages themselves ?
         if isinstance(response, MessageEnvelope):
             if show_typing_indicator is not None and response.show_typing_indicator != show_typing_indicator:
                 # we need to create a new MessageEnvelope object with a different value of `show_typing_indicator`
                 response = copy(response)
                 response.show_typing_indicator = show_typing_indicator
         else:
+            if not isinstance(response, MergedMessage):
+                # `response` is plain message content
+                response = self.merger.create_message(
+                    channel=self.request.channel,
+                    sender=self.bot,
+                    content=response,
+                    **kwargs,
+                )
             response = MessageEnvelope(response, show_typing_indicator=show_typing_indicator or False)
 
         self._bot_responses._response_queue.put_nowait(response)

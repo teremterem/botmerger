@@ -9,7 +9,7 @@ from pydantic import UUID4
 
 from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses, MessageContent
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
-from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage
+from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MergedParticipant
 
 ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
@@ -31,7 +31,12 @@ class BotMergerBase(BotMerger):
     def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
         bot_responses = BotResponses()
-        context = SingleTurnContext(bot, request, bot_responses)
+        context = SingleTurnContext(
+            merger=self,
+            bot=bot,
+            request=request,
+            bot_responses=bot_responses,
+        )
         asyncio.create_task(self._run_single_turn_handler(handler, context))
         return bot_responses
 
@@ -123,10 +128,13 @@ class BotMergerBase(BotMerger):
 
         return channel
 
-    async def create_message(self, channel: MergedChannel, content: MessageContent, **kwargs) -> MergedMessage:
+    async def create_message(
+        self, channel: MergedChannel, sender: MergedParticipant, content: MessageContent, **kwargs
+    ) -> MergedMessage:
         message = MergedMessage(
             merger=self,
             channel=channel,
+            sender=sender,
             content=content,
             **kwargs,
         )

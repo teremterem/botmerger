@@ -33,7 +33,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
             # prefix_command = discord_message.content.startswith("!")
             # new_conversation = prefix_command
 
-            user_message = await merged_channel.new_message(
+            user_message = await merged_channel.new_message_from_owner(
                 channel_type="discord",
                 content=discord_message.content,
             )
