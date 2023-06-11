@@ -166,6 +166,11 @@ class BotResponses:
             pass
         return self.responses_so_far
 
+    async def get_final_response(self) -> "Optional[MessageEnvelope]":
+        """Wait until all the responses are received and return the last one or None if there are no responses."""
+        responses = await self.get_all_responses()
+        return responses[-1] if responses else None
+
 
 # noinspection PyProtectedMember
 class SingleTurnContext:
@@ -179,32 +184,39 @@ class SingleTurnContext:
     def __init__(
         self,
         merger: BotMerger,
+        this_bot: "MergedBot",
         channel: "MergedChannel",
-        bot: "MergedBot",
         request: "MergedMessage",
         bot_responses: BotResponses,
     ) -> None:
         self.merger = merger
+        self.this_bot = this_bot
         self.channel = channel
-        self.bot = bot
         self.request = request
         self._bot_responses = bot_responses
 
-    async def trigger_another_bot(self, bot: Union["MergedBot", str], request: MessageType) -> BotResponses:
+    async def trigger_another_bot(self, another_bot: Union["MergedBot", str], request: MessageType) -> BotResponses:
         """Trigger another bot with a request and return a stream of responses from that bot."""
         from botmerger.models import MergedMessage, MessageEnvelope
 
-        if isinstance(bot, str):
-            bot = await self.merger.find_bot(bot)
+        if isinstance(another_bot, str):
+            another_bot = await self.merger.find_bot(another_bot)
 
         if isinstance(request, MessageEnvelope):
-            return bot.trigger(request.message)
+            return another_bot.trigger(request.message)
         if isinstance(request, MergedMessage):
-            return bot.trigger(request)
+            return another_bot.trigger(request)
 
         # this is neither `MessageEnvelope` nor `MergedMessage` so we assume it is `MessageContent`
-        request = await self.channel.new_message(self.bot, request)
-        return bot.trigger(request)
+        request = await self.channel.new_message(self.this_bot, request)
+        return another_bot.trigger(request)
+
+    async def get_another_bot_final_response(
+        self, another_bot: Union["MergedBot", str], request: MessageType
+    ) -> "Optional[MessageEnvelope]":
+        """Get the final response from another bot."""
+        responses = await self.trigger_another_bot(another_bot, request)
+        return await responses.get_final_response()
 
     async def yield_response(
         self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs
@@ -232,10 +244,17 @@ class SingleTurnContext:
                 # `response` is plain message content
                 response = await self.merger.create_message(
                     channel=self.channel,
-                    sender=self.bot,
+                    sender=self.this_bot,
                     content=response,
                     **kwargs,
                 )
             response = MessageEnvelope(response, show_typing_indicator=show_typing_indicator or False)
 
         self._bot_responses._response_queue.put_nowait(response)
+
+    async def yield_from(
+        self, another_bot_responses: BotResponses, show_typing_indicator: Optional[bool] = None
+    ) -> None:
+        """Yield all the responses from another bot."""
+        async for response in another_bot_responses:
+            await self.yield_response(response, show_typing_indicator=show_typing_indicator)

@@ -33,8 +33,8 @@ class BotMergerBase(BotMerger):
         bot_responses = BotResponses()
         context = SingleTurnContext(
             merger=self,
+            this_bot=bot,
             channel=request.channel,
-            bot=bot,
             request=request,
             bot_responses=bot_responses,
         )
