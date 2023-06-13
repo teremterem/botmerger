@@ -1,4 +1,3 @@
-# pylint: disable=no-name-in-module
 """Discord integration for MergedBots."""
 import contextlib
 import json
@@ -27,7 +26,6 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
         try:
             merged_channel = await bot.merger.find_or_create_user_channel(
                 channel_type="discord",
-                # TODO read about discord_message.channel.id - is it unique across all servers ?
                 channel_id=discord_message.channel.id,
                 user_display_name=discord_message.author.name,
             )
@@ -35,7 +33,15 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
             # prefix_command = discord_message.content.startswith("!")
             # new_conversation = prefix_command
 
-            user_request = await merged_channel.new_message_from_owner(discord_message.content)
+            user_request = await merged_channel.new_message_from_owner(
+                discord_message.content,
+                # extra_fields={
+                #     # TODO is this unsecure ? (given that MergedMessage objects will be passed around between
+                #     #  BotMerger distributed nodes in the future)
+                #     "discord_channel_id": discord_message.channel.id,
+                #     "discord_message_id": discord_message.id,
+                # },
+            )
             bot_responses = bot.trigger(user_request)
 
             async for response in _iterate_over_responses(bot_responses, discord_message.channel.typing()):
@@ -44,7 +50,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                     response_content = f"```json\n{json.dumps(response_content, indent=2)}\n```"
 
                 for chunk in get_text_chunks(response_content, DISCORD_MSG_LIMIT):
-                    await discord_message.channel.send(chunk)
+                    await discord_message.channel.send(chunk)  # , reference=discord_message)
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Error while processing a Discord message: %s", exc, exc_info=exc)
