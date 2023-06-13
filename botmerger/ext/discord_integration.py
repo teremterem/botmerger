@@ -47,7 +47,10 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
             async for response in _iterate_over_responses(bot_responses, discord_message.channel.typing()):
                 response_content = response.content
                 if not isinstance(response_content, str):
-                    response_content = f"```json\n{json.dumps(response_content, indent=2)}\n```"
+                    try:
+                        response_content = f"```json\n{json.dumps(response_content, indent=2)}\n```"
+                    except Exception as exc:  # pylint: disable=broad-exception-caught
+                        logger.error("Error while formatting response content: %s", exc, exc_info=exc)
 
                 for chunk in get_text_chunks(response_content, DISCORD_MSG_LIMIT):
                     await discord_message.channel.send(chunk)  # , reference=discord_message)
