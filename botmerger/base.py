@@ -197,6 +197,7 @@ class SingleTurnContext:
 
     async def trigger_another_bot(self, another_bot: Union["MergedBot", str], request: MessageType) -> BotResponses:
         """Trigger another bot with a request and return a stream of responses from that bot."""
+        # TODO make this a method of `MergedBot` instead ?
         from botmerger.models import MergedMessage, MessageEnvelope
 
         if isinstance(another_bot, str):
@@ -215,6 +216,7 @@ class SingleTurnContext:
         self, another_bot: Union["MergedBot", str], request: MessageType
     ) -> "Optional[MessageEnvelope]":
         """Get the final response from another bot."""
+        # TODO make this a method of `MergedBot` instead ?
         responses = await self.trigger_another_bot(another_bot, request)
         return await responses.get_final_response()
 
