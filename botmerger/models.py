@@ -69,25 +69,50 @@ class MergedChannel(MergedObject):
         )
 
 
-class MergedMessage(MergedObject):
-    """A message that can be sent by a bot or a user."""
-
-    channel: MergedChannel
+class BaseMessage:
+    """
+    Base class for messages. This is not a Pydantic model. `sender` and `content` are properties that must be
+    implemented by subclasses one way or another (either as Pydantic fields or as properties).
+    """
 
     sender: MergedParticipant
     content: MessageContent
 
 
+class MergedMessage(BaseMessage, MergedObject):
+    """A message that was sent in a channel."""
+
+    channel: MergedChannel
+    show_typing_afterwards: bool = False
+
+
+class OriginalMessage(MergedMessage):
+    """
+    This subclass represents an original message. It implements `sender` and `content` as Pydantic fields.
+    """
+
+    sender: MergedParticipant
+    content: MessageContent
+
+
+class ForwardedMessage(MergedMessage):
+    """
+    This subclass represents a forwarded message. It implements `sender` and `content` as properties that are
+    delegated to the original message.
+    """
+
+    original_message: OriginalMessage
+
+    @property
+    def sender(self) -> MergedParticipant:
+        """The sender of the original message."""
+        return self.original_message.sender
+
+    @property
+    def content(self) -> MessageContent:
+        """The content of the original message."""
+        return self.original_message.content
+
+
 class MessageEnvelope:
-    """
-    A volatile packaging for a message. "Volatile" means that the envelope itself is not persisted by
-    BotMerger (only the message is).
-
-    :param message: the message in this envelope
-    :param show_typing_indicator: whether to show a typing indicator after this message is dispatched (and
-           until the next message)
-    """
-
-    def __init__(self, message: MergedMessage, show_typing_indicator: bool = False):
-        self.message = message
-        self.show_typing_indicator = show_typing_indicator
+    """TODO DELETE ME"""
