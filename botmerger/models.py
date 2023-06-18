@@ -139,7 +139,3 @@ class ForwardedMessage(MergedMessage):
     def content(self) -> MessageContent:
         """The content of the original message."""
         return self.original_message.content
-
-
-class MessageEnvelope:
-    """TODO DELETE ME"""

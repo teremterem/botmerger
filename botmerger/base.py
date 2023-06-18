@@ -11,7 +11,7 @@ from pydantic import BaseModel, UUID4, Field
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope, MergedParticipant
+    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MergedParticipant
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # either a string or any other json-serializable object
@@ -159,7 +159,7 @@ class MergedObject(BaseModel):
 
 class BotResponses:
     """
-    A class that represents a stream of responses from a bot. It is an async iterator that yields `MessageEnvelope`
+    A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
     objects. It also has a method `get_all_responses` that will block until all the responses are received and then
     return them as a list.
     """
@@ -167,8 +167,8 @@ class BotResponses:
     _END_OF_RESPONSES = object()
 
     def __init__(self) -> None:
-        self.responses_so_far: "List[MessageEnvelope]" = []
-        self._response_queue: "Optional[Queue[Union[MessageEnvelope, object, Exception]]]" = Queue()
+        self.responses_so_far: List["MergedMessage"] = []
+        self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception]]] = Queue()
         self._error: Optional[ErrorWrapper] = None
 
     def __aiter__(self) -> "BotResponses":
@@ -194,14 +194,14 @@ class BotResponses:
         self.responses_so_far.append(response)
         return response
 
-    async def get_all_responses(self) -> "List[MessageEnvelope]":
+    async def get_all_responses(self) -> List["MergedMessage"]:
         """Wait until all the responses are received and return them as a list."""
         # make sure all responses are fetched
         async for _ in self:
             pass
         return self.responses_so_far
 
-    async def get_final_response(self) -> "Optional[MessageEnvelope]":
+    async def get_final_response(self) -> Optional["MergedMessage"]:
         """Wait until all the responses are received and return the last one or None if there are no responses."""
         responses = await self.get_all_responses()
         return responses[-1] if responses else None
@@ -233,7 +233,7 @@ class SingleTurnContext:
     async def trigger_another_bot(self, another_bot: Union["MergedBot", str], request: MessageType) -> BotResponses:
         """Trigger another bot with a request and return a stream of responses from that bot."""
         # TODO make this a method of `MergedBot` instead ?
-        from botmerger.models import MergedMessage, MessageEnvelope
+        from botmerger.models import MergedMessage
 
         if isinstance(another_bot, str):
             another_bot = await self.merger.find_bot(another_bot)
@@ -249,7 +249,7 @@ class SingleTurnContext:
 
     async def get_another_bot_final_response(
         self, another_bot: Union["MergedBot", str], request: MessageType
-    ) -> "Optional[MessageEnvelope]":
+    ) -> Optional["MergedMessage"]:
         """Get the final response from another bot."""
         # TODO make this a method of `MergedBot` instead ?
         responses = await self.trigger_another_bot(another_bot, request)
@@ -262,7 +262,7 @@ class SingleTurnContext:
         Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
         `show_typing_indicator` in the response that was passed in.
         """
-        from botmerger.models import MergedMessage, MessageEnvelope
+        from botmerger.models import MergedMessage
 
         # TODO are we sure all these conditions make sense ? what is our philosophy when it comes to relations between
         #  channels and messages as well as between messages themselves ?
