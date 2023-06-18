@@ -101,7 +101,7 @@ async def test_trigger_bot() -> None:
             channel_id="test_channel_id",
             user_display_name="Test User",
         )
-    ).new_message_from_owner("test request")
+    ).next_message_from_owner("test request")
 
     responses = _dummy_bot_func.bot.trigger(request)
 
@@ -141,7 +141,7 @@ async def test_trigger_bot_exception() -> None:
             channel_id="test_channel_id",
             user_display_name="Test User",
         )
-    ).new_message_from_owner("test request")
+    ).next_message_from_owner("test request")
 
     responses = _dummy_bot_func.bot.trigger(request)
 

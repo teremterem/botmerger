@@ -1,17 +1,23 @@
-# pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module,too-many-arguments
 """Implementations of BotMerger class."""
 import asyncio
 import logging
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, Dict, Union
+from typing import Any, Optional, Tuple, Type, Dict
 
 from pydantic import UUID4
 
-from botmerger.base import BotMerger, MergedObject, SingleTurnHandler, SingleTurnContext, BotResponses, MessageContent
+from botmerger.base import (
+    BotMerger,
+    MergedObject,
+    SingleTurnHandler,
+    SingleTurnContext,
+    BotResponses,
+    MessageContent,
+    ObjectKey,
+)
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
-from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MergedParticipant
-
-ObjectKey = Union[UUID4, Tuple[Any, ...]]
+from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MergedParticipant, OriginalMessage
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +47,7 @@ class BotMergerBase(BotMerger):
         asyncio.create_task(self._run_single_turn_handler(handler, context))
         return bot_responses
 
-    # noinspection PyProtectedMember
+    # noinspection PyProtectedMember,PyMethodMayBeStatic
     async def _run_single_turn_handler(self, handler: SingleTurnHandler, context: SingleTurnContext) -> None:
         # pylint: disable=broad-except,protected-access
         try:
@@ -97,7 +103,7 @@ class BotMergerBase(BotMerger):
     async def find_bot(self, alias: str) -> MergedBot:
         bot = await self._get_bot(alias)
         if not bot:
-            raise BotNotFoundError(f"bot with alias {alias!r} does not exist")
+            raise BotNotFoundError(f"bot with alias {alias!r} was not found")
         return bot
 
     async def find_or_create_user_channel(
@@ -121,49 +127,91 @@ class BotMergerBase(BotMerger):
                 channel_id=channel_id,
                 owner=user,
             )
-            await self._register_object(key, channel)
+            await self._register_immutable_object(key, channel)
             await self._register_merged_object(user)
 
         return channel
 
     async def create_message(
-        self, channel: MergedChannel, sender: MergedParticipant, content: MessageContent, **kwargs
-    ) -> MergedMessage:
-        message = MergedMessage(
+        self,
+        thread_uuid: UUID4,
+        channel: MergedChannel,
+        sender: MergedParticipant,
+        content: MessageContent,
+        indicate_typing_afterwards: bool,
+        responds_to: Optional["MergedMessage"],
+        goes_after: Optional["MergedMessage"],
+        **kwargs,
+    ) -> OriginalMessage:
+        message = OriginalMessage(
             merger=self,
             channel=channel,
             sender=sender,
             content=content,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            responds_to=responds_to,
+            goes_after=goes_after,
             **kwargs,
         )
         await self._register_merged_object(message)
+        await self.set_mutable_state(self._generate_latest_message_key(thread_uuid), message.uuid)
         return message
 
-    @abstractmethod
-    async def _register_object(self, key: ObjectKey, value: Any) -> None:
-        """Register an object."""
+    async def create_next_message(
+        self,
+        thread_uuid: UUID4,
+        channel: MergedChannel,
+        sender: MergedParticipant,
+        content: MessageContent,
+        indicate_typing_afterwards: bool,
+        responds_to: Optional["MergedMessage"],
+        **kwargs,
+    ) -> MergedMessage:
+        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(channel.uuid))
+        if latest_message_uuid:
+            latest_message = await self.find_message(latest_message_uuid)
+        else:
+            latest_message = None
+
+        return await self.create_message(
+            thread_uuid=thread_uuid,
+            channel=channel,
+            sender=sender,
+            content=content,
+            responds_to=responds_to,
+            goes_after=latest_message,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            **kwargs,
+        )
+
+    async def find_message(self, uuid: UUID4) -> MergedMessage:
+        return await self._get_correct_object(uuid, MergedMessage)
 
     @abstractmethod
-    async def _get_object(self, key: ObjectKey) -> Optional[Any]:
-        """Get an object by its key."""
+    async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
+        """Register an immutable object."""
+
+    @abstractmethod
+    async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
+        """Get an immutable object by its key."""
 
     async def _get_correct_object(self, key: ObjectKey, expected_type: Type) -> Optional[Any]:
         """
         Get an object by its key and assert that either there is no object (None) or the object is of the expected
         type.
         """
-        obj = await self._get_object(key)
+        obj = await self._get_immutable_object(key)
         self._assert_correct_obj_type_or_none(obj, expected_type, key)
         return obj
 
     async def _register_merged_object(self, obj: MergedObject) -> None:
         """Register a merged object."""
-        await self._register_object(obj.uuid, obj)
+        await self._register_immutable_object(obj.uuid, obj)
 
     async def _register_bot(self, bot: MergedBot) -> None:
         """Register a bot."""
         await self._register_merged_object(bot)
-        await self._register_object(self._generate_bot_key(bot.alias), bot)
+        await self._register_immutable_object(self._generate_bot_key(bot.alias), bot)
 
     async def _get_bot(self, alias: str) -> Optional[MergedBot]:
         """Get a bot by its alias."""
@@ -178,6 +226,11 @@ class BotMergerBase(BotMerger):
     def _generate_channel_key(self, channel_type: str, channel_id: Any) -> Tuple[str, str, str]:
         """Generate a key for a channel."""
         return "channel_by_type_and_id", channel_type, channel_id
+
+    # noinspection PyMethodMayBeStatic
+    def _generate_latest_message_key(self, thread_uuid: UUID4) -> Tuple[str, UUID4]:
+        """Generate a key for the latest message in a thread."""
+        return "latest_message_by_thread", thread_uuid
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: Type, key: Any) -> None:
@@ -196,12 +249,17 @@ class InMemoryBotMerger(BotMergerBase):
 
     def __init__(self) -> None:
         super().__init__()
-        self._objects: Dict[ObjectKey, Any] = {}
+        self._immutable_objects: Dict[ObjectKey, Any] = {}
+        self._mutable_objects: Dict[UUID4, Any] = {}
 
-    async def _register_object(self, key: ObjectKey, value: Any) -> None:
-        """Register an object."""
-        self._objects[key] = value
+    async def set_mutable_state(self, key: ObjectKey, state: Any) -> None:
+        self._mutable_objects[key] = state
 
-    async def _get_object(self, key: ObjectKey) -> Optional[Any]:
-        """Get an object by its key."""
-        return self._objects.get(key)
+    async def get_mutable_state(self, key: ObjectKey) -> Optional[Any]:
+        return self._mutable_objects.get(key)
+
+    async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
+        self._immutable_objects[key] = value
+
+    async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
+        return self._immutable_objects.get(key)

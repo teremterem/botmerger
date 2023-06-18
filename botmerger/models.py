@@ -55,16 +55,41 @@ class MergedChannel(MergedObject):
     channel_id: Any
     owner: MergedParticipant
 
-    async def new_message_from_owner(self, content: MessageContent, **kwargs) -> "MergedMessage":
-        """Create a new message in this channel from its owner."""
-        return await self.new_message(sender=self.owner, content=content, **kwargs)
+    async def next_message_from_owner(
+        self,
+        content: MessageContent,
+        indicate_typing_afterwards: bool = False,
+        responds_to: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> "MergedMessage":
+        """
+        Create a new message that goes after the last message in this channel. Mark it as if it was sent by the
+        owner of the channel.
+        """
+        return await self.next_message(
+            sender=self.owner,
+            content=content,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            responds_to=responds_to,
+            **kwargs,
+        )
 
-    async def new_message(self, sender: MergedParticipant, content: MessageContent, **kwargs) -> "MergedMessage":
-        """Create a new message in this channel."""
-        return await self.merger.create_message(
+    async def next_message(
+        self,
+        sender: MergedParticipant,
+        content: MessageContent,
+        indicate_typing_afterwards: bool = False,
+        responds_to: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> "MergedMessage":
+        """Create a new message that goes after the last message in this channel."""
+        return await self.merger.create_next_message(
+            thread_uuid=self.uuid,  # in this case, the thread is the channel itself
             channel=self,
             sender=sender,
             content=content,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            responds_to=responds_to,
             **kwargs,
         )
 
@@ -83,7 +108,9 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     channel: MergedChannel
-    show_typing_afterwards: bool = False
+    indicate_typing_afterwards: bool
+    responds_to: Optional["MergedMessage"]
+    goes_after: Optional["MergedMessage"]
 
 
 class OriginalMessage(MergedMessage):

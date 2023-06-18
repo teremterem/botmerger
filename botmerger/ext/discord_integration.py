@@ -33,7 +33,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
             # prefix_command = discord_message.content.startswith("!")
             # new_conversation = prefix_command
 
-            user_request = await merged_channel.new_message_from_owner(
+            user_request = await merged_channel.next_message_from_owner(
                 discord_message.content,
                 # extra_fields={
                 #     # TODO is this unsecure ? (given that MergedMessage objects will be passed around between
@@ -69,7 +69,7 @@ async def _iterate_over_responses(
     response = None
     while True:
         try:
-            if not response or response.show_typing_indicator:
+            if not response or response.indicate_typing_afterwards:
                 _typing_context_manager = typing_context_manager
             else:
                 _typing_context_manager = _null_context
@@ -80,7 +80,7 @@ async def _iterate_over_responses(
         except StopAsyncIteration:
             return
 
-        yield response.message
+        yield response
 
 
 _null_context = contextlib.nullcontext()

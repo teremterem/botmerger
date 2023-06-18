@@ -1,9 +1,9 @@
-# pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module,too-many-arguments
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
 from copy import copy
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List
+from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel, UUID4, Field
@@ -14,8 +14,9 @@ if TYPE_CHECKING:
     from botmerger.models import MergedBot, MergedChannel, MergedMessage, MessageEnvelope, MergedParticipant
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
-MessageContent = Union[str, Any]
-MessageType = Union["MessageEnvelope", "MergedMessage", MessageContent]
+MessageContent = Union[str, BaseModel, Any]  # either a string or any other json-serializable object
+MessageType = Union["MergedMessage", MessageContent]
+ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
 
 class BotMerger(ABC):
@@ -78,9 +79,42 @@ class BotMerger(ABC):
 
     @abstractmethod
     async def create_message(
-        self, channel: "MergedChannel", sender: "MergedParticipant", content: "MessageContent", **kwargs
+        self,
+        thread_uuid: UUID4,
+        channel: "MergedChannel",
+        sender: "MergedParticipant",
+        content: "MessageContent",
+        indicate_typing_afterwards: bool,
+        responds_to: Optional["MergedMessage"],
+        goes_after: Optional["MergedMessage"],
+        **kwargs,
     ) -> "MergedMessage":
         """Create a new message in a given channel."""
+
+    @abstractmethod
+    async def create_next_message(
+        self,
+        thread_uuid: UUID4,
+        channel: "MergedChannel",
+        sender: "MergedParticipant",
+        content: "MessageContent",
+        indicate_typing_afterwards: bool,
+        responds_to: Optional["MergedMessage"],
+        **kwargs,
+    ) -> "MergedMessage":
+        """Create a new message in a given channel that goes after the last message in a given thread."""
+
+    @abstractmethod
+    async def find_message(self, uuid: UUID4) -> "MergedMessage":
+        """Find a message by its uuid."""
+
+    @abstractmethod
+    async def set_mutable_state(self, key: ObjectKey, state: Any) -> None:
+        """Set a mutable state associated with a given key."""
+
+    @abstractmethod
+    async def get_mutable_state(self, key: ObjectKey) -> Optional[Any]:
+        """Get a mutable state associated with a given key."""
 
 
 class MergedObject(BaseModel):
@@ -106,6 +140,7 @@ class MergedObject(BaseModel):
         arbitrary_types_allowed = True
 
     merger: BotMerger
+    # TODO replace uuid with something that also includes the id of the BotMerger instance this object belongs to
     uuid: UUID4 = Field(default_factory=uuid4)
     # TODO freeze the contents of `extra_data` upon model creation recursively
     # TODO validate that all values in `extra_data` are json-serializable
@@ -136,10 +171,10 @@ class BotResponses:
         self._response_queue: "Optional[Queue[Union[MessageEnvelope, object, Exception]]]" = Queue()
         self._error: Optional[ErrorWrapper] = None
 
-    def __aiter__(self):
+    def __aiter__(self) -> "BotResponses":
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> "MergedMessage":
         if self._error:
             raise self._error
 
