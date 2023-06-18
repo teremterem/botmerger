@@ -2,7 +2,6 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
-from copy import copy
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
 from uuid import uuid4
 
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     from botmerger.models import MergedBot, MergedChannel, MergedMessage, MergedParticipant
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
-MessageContent = Union[str, BaseModel, Any]  # either a string or any other json-serializable object
+MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
 MessageType = Union["MergedMessage", MessageContent]
 ObjectKey = Union[UUID4, Tuple[Any, ...]]
 
@@ -83,13 +82,16 @@ class BotMerger(ABC):
         thread_uuid: UUID4,
         channel: "MergedChannel",
         sender: "MergedParticipant",
-        content: "MessageContent",
-        indicate_typing_afterwards: bool,
+        content: "MessageType",
+        indicate_typing_afterwards: Optional[bool],
         responds_to: Optional["MergedMessage"],
         goes_after: Optional["MergedMessage"],
         **kwargs,
     ) -> "MergedMessage":
-        """Create a new message in a given channel."""
+        """
+        Create a message in a given channel. If `content` is another `MergedMessage` instance, then
+        `ForwardedMessage` will be created instead of `OriginalMessage`.
+        """
 
     @abstractmethod
     async def create_next_message(
@@ -97,12 +99,15 @@ class BotMerger(ABC):
         thread_uuid: UUID4,
         channel: "MergedChannel",
         sender: "MergedParticipant",
-        content: "MessageContent",
-        indicate_typing_afterwards: bool,
+        content: "MessageType",
+        indicate_typing_afterwards: Optional[bool],
         responds_to: Optional["MergedMessage"],
         **kwargs,
     ) -> "MergedMessage":
-        """Create a new message in a given channel that goes after the last message in a given thread."""
+        """
+        Create a message in a given channel that goes after the last message in a given thread. If `content` is
+        another `MergedMessage` instance, then `ForwardedMessage` will be created instead of `OriginalMessage`.
+        """
 
     @abstractmethod
     async def find_message(self, uuid: UUID4) -> "MergedMessage":
@@ -143,7 +148,7 @@ class MergedObject(BaseModel):
     # TODO replace uuid with something that also includes the id of the BotMerger instance this object belongs to
     uuid: UUID4 = Field(default_factory=uuid4)
     # TODO freeze the contents of `extra_data` upon model creation recursively
-    # TODO validate that all values in `extra_data` are json-serializable
+    # TODO validate that all values in `extra_fields` are json-serializable
     extra_fields: Dict[str, Any] = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
@@ -256,42 +261,27 @@ class SingleTurnContext:
         return await responses.get_final_response()
 
     async def yield_response(
-        self, response: MessageType, show_typing_indicator: Optional[bool] = None, **kwargs
+        self, response: MessageType, indicate_typing_afterwards: Optional[bool] = None, **kwargs
     ) -> None:
-        """
-        Yield a response to the request. If `show_typing_indicator` is specified it will override the value of
-        `show_typing_indicator` in the response that was passed in.
-        """
-        from botmerger.models import MergedMessage
-
-        # TODO are we sure all these conditions make sense ? what is our philosophy when it comes to relations between
-        #  channels and messages as well as between messages themselves ?
-        #  HERE IS WHAT NEEDS TO BE CORRECTED:
-        #    - if `response` belong to a different channel than a cloned version of `response` should be created with
-        #      `channel` set to `self.request.channel`
-        #    - but what if we start to maintain some sort of message history and `response` belongs to the same channel
-        #      as `self.request` but its position in the history is wrong ? should we clone it then ?
-        if isinstance(response, MessageEnvelope):
-            if show_typing_indicator is not None and response.show_typing_indicator != show_typing_indicator:
-                # we need to create a new MessageEnvelope object with a different value of `show_typing_indicator`
-                response = copy(response)
-                response.show_typing_indicator = show_typing_indicator
-        else:
-            if not isinstance(response, MergedMessage):
-                # `response` is plain message content
-                response = await self.merger.create_message(
-                    channel=self.channel,
-                    sender=self.this_bot,
-                    content=response,
-                    **kwargs,
-                )
-            response = MessageEnvelope(response, show_typing_indicator=show_typing_indicator or False)
-
+        response = await self.merger.create_next_message(
+            thread_uuid=self.channel.uuid,  # TODO what is our philosophy when it comes to channels and threads ?
+            channel=self.channel,
+            sender=self.this_bot,
+            content=response,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            responds_to=self.request,
+            **kwargs,
+        )
         self._bot_responses._response_queue.put_nowait(response)
 
+    async def yield_interim_response(self, response: MessageType, **kwargs) -> None:
+        await self.yield_response(response, indicate_typing_afterwards=True, **kwargs)
+
+    async def yield_final_response(self, response: MessageType, **kwargs) -> None:
+        await self.yield_response(response, indicate_typing_afterwards=False, **kwargs)
+
     async def yield_from(
-        self, another_bot_responses: BotResponses, show_typing_indicator: Optional[bool] = None
+        self, another_bot_responses: BotResponses, indicate_typing_afterwards: Optional[bool] = None
     ) -> None:
-        """Yield all the responses from another bot."""
         async for response in another_bot_responses:
-            await self.yield_response(response, show_typing_indicator=show_typing_indicator)
+            await self.yield_response(response, indicate_typing_afterwards=indicate_typing_afterwards)

@@ -1,11 +1,12 @@
 # pylint: disable=no-name-in-module,too-many-arguments
 """Implementations of BotMerger class."""
 import asyncio
+import dataclasses
 import logging
 from abc import abstractmethod
 from typing import Any, Optional, Tuple, Type, Dict
 
-from pydantic import UUID4
+from pydantic import UUID4, BaseModel
 
 from botmerger.base import (
     BotMerger,
@@ -13,11 +14,19 @@ from botmerger.base import (
     SingleTurnHandler,
     SingleTurnContext,
     BotResponses,
-    MessageContent,
     ObjectKey,
+    MessageType,
 )
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
-from botmerger.models import MergedBot, MergedChannel, MergedUser, MergedMessage, MergedParticipant, OriginalMessage
+from botmerger.models import (
+    MergedBot,
+    MergedChannel,
+    MergedUser,
+    MergedMessage,
+    MergedParticipant,
+    OriginalMessage,
+    ForwardedMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,22 +146,53 @@ class BotMergerBase(BotMerger):
         thread_uuid: UUID4,
         channel: MergedChannel,
         sender: MergedParticipant,
-        content: MessageContent,
-        indicate_typing_afterwards: bool,
-        responds_to: Optional["MergedMessage"],
-        goes_after: Optional["MergedMessage"],
+        content: MessageType,
+        indicate_typing_afterwards: Optional[bool],
+        responds_to: Optional[MergedMessage],
+        goes_after: Optional[MergedMessage],
         **kwargs,
     ) -> OriginalMessage:
-        message = OriginalMessage(
-            merger=self,
-            channel=channel,
-            sender=sender,
-            content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
-            responds_to=responds_to,
-            goes_after=goes_after,
-            **kwargs,
-        )
+        if isinstance(content, MergedMessage):
+            # we are forwarding a message from another thread (or from a different place in the same thread)
+            if indicate_typing_afterwards is None:
+                # pass on the value from the original message
+                indicate_typing_afterwards = content.indicate_typing_afterwards
+
+            message = ForwardedMessage(
+                merger=self,
+                channel=channel,
+                sender=sender,
+                original_message=content,
+                indicate_typing_afterwards=indicate_typing_afterwards,
+                responds_to=responds_to,
+                goes_after=goes_after,
+                **kwargs,
+            )
+
+        else:
+            # we are creating a new message
+            if indicate_typing_afterwards is None:
+                raise ValueError("indicate_typing_afterwards must not be None when creating a new message")
+
+            if dataclasses.is_dataclass(content):
+                # noinspection PyDataclass
+                content = dataclasses.asdict(content)
+            elif isinstance(content, BaseModel):
+                content = content.dict()
+
+            # TODO check if resulting content is json-serializable
+
+            message = OriginalMessage(
+                merger=self,
+                channel=channel,
+                sender=sender,
+                content=content,
+                indicate_typing_afterwards=indicate_typing_afterwards,
+                responds_to=responds_to,
+                goes_after=goes_after,
+                **kwargs,
+            )
+
         await self._register_merged_object(message)
         await self.set_mutable_state(self._generate_latest_message_key(thread_uuid), message.uuid)
         return message
@@ -162,9 +202,9 @@ class BotMergerBase(BotMerger):
         thread_uuid: UUID4,
         channel: MergedChannel,
         sender: MergedParticipant,
-        content: MessageContent,
-        indicate_typing_afterwards: bool,
-        responds_to: Optional["MergedMessage"],
+        content: MessageType,
+        indicate_typing_afterwards: Optional[bool],
+        responds_to: Optional[MergedMessage],
         **kwargs,
     ) -> MergedMessage:
         latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(channel.uuid))

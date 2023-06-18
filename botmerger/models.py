@@ -1,6 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import Field
 
@@ -96,44 +96,36 @@ class MergedChannel(MergedObject):
 
 class BaseMessage:
     """
-    Base class for messages. This is not a Pydantic model. `sender` and `content` are properties that must be
-    implemented by subclasses one way or another (either as Pydantic fields or as properties).
+    Base class for messages. This is not a Pydantic model. `content` is property that must be implemented by
+    subclasses one way or another (either as a Pydantic field or as a property).
     """
 
-    sender: MergedParticipant
-    content: MessageContent
+    content: Union[str, Any]
 
 
 class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     channel: MergedChannel
+    sender: MergedParticipant
     indicate_typing_afterwards: bool
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
 
 
 class OriginalMessage(MergedMessage):
-    """
-    This subclass represents an original message. It implements `sender` and `content` as Pydantic fields.
-    """
+    """This subclass represents an original message. It implements `content` as a Pydantic field."""
 
-    sender: MergedParticipant
-    content: MessageContent
+    content: Union[str, Any]
 
 
 class ForwardedMessage(MergedMessage):
     """
-    This subclass represents a forwarded message. It implements `sender` and `content` as properties that are
-    delegated to the original message.
+    This subclass represents a forwarded message. It implements `content` as a property that is delegated to the
+    original message.
     """
 
     original_message: OriginalMessage
-
-    @property
-    def sender(self) -> MergedParticipant:
-        """The sender of the original message."""
-        return self.original_message.sender
 
     @property
     def content(self) -> MessageContent:
