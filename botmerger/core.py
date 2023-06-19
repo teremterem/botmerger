@@ -157,6 +157,11 @@ class BotMergerBase(BotMerger):
             if indicate_typing_afterwards is None:
                 # pass on the value from the original message
                 indicate_typing_afterwards = content.indicate_typing_afterwards
+            if isinstance(content, ForwardedMessage):
+                # make sure we are not forwarding a forwarded message
+                # TODO do this recursively or just rely on the fact that all messages are created by this method
+                #  and there is never a forwarded message in original_message field ?
+                content = content.original_message
 
             message = ForwardedMessage(
                 merger=self,
