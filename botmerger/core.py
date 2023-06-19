@@ -160,7 +160,7 @@ class BotMergerBase(BotMerger):
             if isinstance(content, ForwardedMessage):
                 # make sure we are not forwarding a forwarded message
                 # TODO do this recursively or just rely on the fact that all messages are created by this method
-                #  and there is never a forwarded message in original_message field ?
+                #  and there is never a ForwardedMessage instance in original_message field ?
                 content = content.original_message
 
             message = ForwardedMessage(
