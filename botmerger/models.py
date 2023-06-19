@@ -23,7 +23,12 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
-    async def trigger(self, request: MessageType, channel: Optional["MergedChannel"] = None) -> BotResponses:
+    async def trigger(
+        self,
+        request: MessageType,
+        channel: Optional["MergedChannel"] = None,
+        sender: Optional["MergedParticipant"] = None,
+    ) -> BotResponses:
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
@@ -31,17 +36,22 @@ class MergedBot(MergedParticipant):
         if not isinstance(request, MergedMessage):
             if not channel:
                 raise ValueError("channel is required if request is not a MergedMessage")
+            if not sender:
+                raise ValueError("sender is required if request is not a MergedMessage")
             request = await self.merger.create_message(
                 thread_uuid=uuid4(),  # create a brand-new thread
                 channel=channel,
-                sender=self,
+                sender=sender,
                 content=request,
                 indicate_typing_afterwards=False,
                 responds_to=None,
                 goes_after=None,
             )
-        elif channel:
-            raise ValueError("channel is not allowed if request is a MergedMessage")
+        else:
+            if channel:
+                raise ValueError("channel is not allowed if request is a MergedMessage")
+            if sender:
+                raise ValueError("sender is not allowed if request is a MergedMessage")
         return await self.merger.trigger_bot(self, request)
 
     async def get_another_bot_final_response(
