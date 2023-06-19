@@ -43,9 +43,9 @@ class BotMergerBase(BotMerger):
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
 
-    def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
+    async def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
-        bot_responses = BotResponses()
+        bot_responses = BotResponses(request)
         context = SingleTurnContext(
             merger=self,
             this_bot=bot,
@@ -166,6 +166,7 @@ class BotMergerBase(BotMerger):
             message = ForwardedMessage(
                 merger=self,
                 channel=channel,
+                thread_uuid=thread_uuid,
                 sender=sender,
                 original_message=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
@@ -190,6 +191,7 @@ class BotMergerBase(BotMerger):
             message = OriginalMessage(
                 merger=self,
                 channel=channel,
+                thread_uuid=thread_uuid,
                 sender=sender,
                 content=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,

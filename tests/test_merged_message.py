@@ -20,6 +20,7 @@ def test_original_and_forwarded_message() -> None:
     original_message = OriginalMessage(
         merger=merger,
         channel=merged_channel,
+        thread_uuid=merged_channel.uuid,
         sender=merged_user,
         indicate_typing_afterwards=False,
         content="some content",
@@ -31,6 +32,7 @@ def test_original_and_forwarded_message() -> None:
     forwarded_message = ForwardedMessage(
         merger=merger,
         channel=merged_channel,
+        thread_uuid=merged_channel.uuid,
         sender=merged_user,
         indicate_typing_afterwards=False,
         original_message=original_message,

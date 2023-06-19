@@ -1,10 +1,11 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
 from typing import Any, Optional, Union
+from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, UUID4
 
-from botmerger.base import MergedObject, SingleTurnHandler, BotResponses, MessageContent
+from botmerger.base import MergedObject, SingleTurnHandler, BotResponses, MessageContent, MessageType
 
 
 class MergedParticipant(MergedObject):
@@ -22,12 +23,33 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
-    def trigger(self, request: "MergedMessage") -> BotResponses:
+    async def trigger(self, request: MessageType, channel: Optional["MergedChannel"] = None) -> BotResponses:
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        return self.merger.trigger_bot(self, request)
+        if not isinstance(request, MergedMessage):
+            if not channel:
+                raise ValueError("channel is required if request is not a MergedMessage")
+            request = await self.merger.create_message(
+                thread_uuid=uuid4(),  # create a brand-new thread
+                channel=channel,
+                sender=self,
+                content=request,
+                indicate_typing_afterwards=False,
+                responds_to=None,
+                goes_after=None,
+            )
+        elif channel:
+            raise ValueError("channel is not allowed if request is a MergedMessage")
+        return await self.merger.trigger_bot(self, request)
+
+    async def get_another_bot_final_response(
+        self, request: MessageType, channel: Optional["MergedChannel"] = None
+    ) -> Optional["MergedMessage"]:
+        """Get the final response from the bot for a given request."""
+        responses = await self.trigger(request, channel=channel)
+        return await responses.get_final_response()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
@@ -107,6 +129,7 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     channel: MergedChannel
+    thread_uuid: UUID4  # TODO should this be a dedicated MergedThread class ?
     sender: MergedParticipant
     indicate_typing_afterwards: bool
     responds_to: Optional["MergedMessage"]

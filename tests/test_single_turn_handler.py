@@ -103,7 +103,7 @@ async def test_trigger_bot() -> None:
         )
     ).next_message_from_owner("test request")
 
-    responses = _dummy_bot_func.bot.trigger(request)
+    responses = await _dummy_bot_func.bot.trigger(request)
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
@@ -143,7 +143,7 @@ async def test_trigger_bot_exception() -> None:
         )
     ).next_message_from_owner("test request")
 
-    responses = _dummy_bot_func.bot.trigger(request)
+    responses = await _dummy_bot_func.bot.trigger(request)
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
