@@ -26,18 +26,19 @@ class MergedBot(MergedParticipant):
     async def trigger(
         self,
         request: MessageType,
-        channel: Optional["MergedChannel"] = None,
         sender: Optional["MergedParticipant"] = None,
+        channel: Optional["MergedChannel"] = None,
+        **kwargs,
     ) -> BotResponses:
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
         if not isinstance(request, MergedMessage):
-            if not channel:
-                raise ValueError("channel is required if request is not a MergedMessage")
             if not sender:
                 raise ValueError("sender is required if request is not a MergedMessage")
+            if not channel:
+                raise ValueError("channel is required if request is not a MergedMessage")
             request = await self.merger.create_message(
                 thread_uuid=uuid4(),  # create a brand-new thread
                 channel=channel,
@@ -46,19 +47,26 @@ class MergedBot(MergedParticipant):
                 indicate_typing_afterwards=False,
                 responds_to=None,
                 goes_after=None,
+                **kwargs,
             )
         else:
-            if channel:
-                raise ValueError("channel is not allowed if request is a MergedMessage")
             if sender:
                 raise ValueError("sender is not allowed if request is a MergedMessage")
+            if channel:
+                raise ValueError("channel is not allowed if request is a MergedMessage")
+            if kwargs:
+                raise ValueError("additional keyword arguments are not allowed if request is a MergedMessage")
         return await self.merger.trigger_bot(self, request)
 
-    async def get_another_bot_final_response(
-        self, request: MessageType, channel: Optional["MergedChannel"] = None
+    async def get_final_response(
+        self,
+        request: MessageType,
+        sender: Optional["MergedParticipant"] = None,
+        channel: Optional["MergedChannel"] = None,
+        **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
-        responses = await self.trigger(request, channel=channel)
+        responses = await self.trigger(request, sender=sender, channel=channel, **kwargs)
         return await responses.get_final_response()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
