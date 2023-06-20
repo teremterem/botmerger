@@ -1,4 +1,4 @@
-"""Discord integration for MergedBots."""
+"""Discord integration for BotMerger."""
 import contextlib
 import json
 import logging
