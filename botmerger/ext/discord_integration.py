@@ -42,7 +42,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                 #     "discord_message_id": discord_message.id,
                 # },
             )
-            bot_responses = bot.trigger(user_request)
+            bot_responses = await bot.trigger(user_request)
 
             async for response in _iterate_over_responses(bot_responses, discord_message.channel.typing()):
                 response_content = response.content
