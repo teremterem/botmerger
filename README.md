@@ -1,1 +1,1 @@
-# 🔀 MergedBots
+# 🔀 BotMerger

@@ -1,4 +1,4 @@
-"""Utility functions for MergedBots library."""
+"""Utility functions for BotMerger library."""
 import traceback
 from typing import Generator
 
