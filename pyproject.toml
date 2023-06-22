@@ -3,10 +3,11 @@ line-length = 119
 
 [tool.poetry]
 name = "botmerger"
-version = "0.0.1"
+version = "0.0.3"
 description = ""
 authors = ["Oleksandr Tereshchenko <toporok@gmail.com>"]
 readme = "README.md"
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.11"  # TODO extend this to older versions too
