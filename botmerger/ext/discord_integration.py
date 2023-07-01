@@ -42,7 +42,9 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                 #     "discord_message_id": discord_message.id,
                 # },
             )
-            bot_responses = await bot.trigger(user_request)
+            # # TODO bring the following line back when we figure out what is our philosophy on channels and threads
+            # bot_responses = await bot.trigger(user_request)
+            bot_responses = await bot.merger.trigger_bot(bot, user_request)
 
             async for response in _iterate_over_responses(bot_responses, discord_message.channel.typing()):
                 response_content = response.content
