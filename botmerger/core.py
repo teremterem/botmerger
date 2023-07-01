@@ -107,7 +107,7 @@ class BotMergerBase(BotMerger):
             handler.bot = bot
         except AttributeError:
             # the trick with setting attributes on a function does not work with methods, but that's fine
-            logger.debug("could not set attributes on %r", handler)
+            logger.debug("could not set `bot` attribute on %r", handler)
 
     async def find_bot(self, alias: str) -> MergedBot:
         bot = await self._get_bot(alias)

@@ -34,30 +34,17 @@ class MergedBot(MergedParticipant):
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        if isinstance(request, MergedMessage):
-            if sender:
-                raise ValueError("sender is not allowed if request is a MergedMessage")
-            if channel:
-                raise ValueError("channel is not allowed if request is a MergedMessage")
-            if kwargs:
-                raise ValueError("additional keyword arguments are not allowed if request is a MergedMessage")
-
-        else:
-            if not sender:
-                raise ValueError("sender is required if request is not a MergedMessage")
-            if not channel:
-                raise ValueError("channel is required if request is not a MergedMessage")
-
-            request = await self.merger.create_message(
-                thread_uuid=uuid4(),  # create a brand-new thread
-                channel=channel,
-                sender=sender,
-                content=request,
-                indicate_typing_afterwards=False,
-                responds_to=None,
-                goes_after=None,
-                **kwargs,
-            )
+        # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
+        request = await self.merger.create_message(
+            thread_uuid=uuid4(),  # create a brand-new thread
+            channel=channel,
+            sender=sender,
+            content=request,
+            indicate_typing_afterwards=False,
+            responds_to=None,
+            goes_after=None,
+            **kwargs,
+        )
         return await self.merger.trigger_bot(self, request)
 
     async def get_final_response(
@@ -142,6 +129,7 @@ class BaseMessage:
     subclasses one way or another (either as a Pydantic field or as a property).
     """
 
+    original_sender: MergedParticipant
     content: Union[str, Any]
 
 
@@ -161,6 +149,11 @@ class OriginalMessage(MergedMessage):
 
     content: Union[str, Any]
 
+    @property
+    def original_sender(self) -> MergedParticipant:
+        """For an original message, the original sender is the same as the sender."""
+        return self.sender
+
 
 class ForwardedMessage(MergedMessage):
     """
@@ -169,6 +162,11 @@ class ForwardedMessage(MergedMessage):
     """
 
     original_message: OriginalMessage
+
+    @property
+    def original_sender(self) -> MergedParticipant:
+        """The original sender of the forwarded message."""
+        return self.original_message.sender
 
     @property
     def content(self) -> MessageContent:
