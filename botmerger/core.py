@@ -60,7 +60,8 @@ class BotMergerBase(BotMerger):
     async def _run_single_turn_handler(self, handler: SingleTurnHandler, context: SingleTurnContext) -> None:
         # pylint: disable=broad-except,protected-access
         try:
-            await handler(context)
+            with context:
+                await handler(context)
         except Exception as exc:
             logger.debug(exc, exc_info=exc)
             context._bot_responses._response_queue.put_nowait(exc)

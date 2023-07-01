@@ -2,6 +2,7 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
+from contextvars import ContextVar
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
 from uuid import uuid4
 
@@ -222,6 +223,9 @@ class SingleTurnContext:
     single turn handler function to yield a response to the request.
     """
 
+    channel_context: ContextVar[Optional["MergedChannel"]] = ContextVar("channel_context", default=None)
+    this_bot_context: ContextVar[Optional["MergedBot"]] = ContextVar("this_bot_context", default=None)
+
     def __init__(
         self,
         merger: BotMerger,
@@ -234,11 +238,29 @@ class SingleTurnContext:
         self.this_bot = this_bot
         self.channel = channel
         self.request = request
+
         self._bot_responses = bot_responses
+        self._channel_backup: Optional["MergedChannel"] = None
+        self._this_bot_backup: Optional["MergedBot"] = None
+
+    def __enter__(self) -> "SingleTurnContext":
+        """Set the context variables to the values of this context object."""
+        self._channel_backup = self.channel_context.get()
+        self._this_bot_backup = self.this_bot_context.get()
+
+        self.channel_context.set(self.channel)
+        self.this_bot_context.set(self.this_bot)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Restore the context variables to their previous values."""
+        self.channel_context.set(self._channel_backup)
+        self.this_bot_context.set(self._this_bot_backup)
 
     async def yield_response(
         self, response: MessageType, indicate_typing_afterwards: Optional[bool] = None, **kwargs
     ) -> "MergedMessage":
+        """Yield a response to the request."""
         response = await self.merger.create_next_message(
             thread_uuid=self.request.thread_uuid,
             channel=self.channel,
@@ -252,13 +274,16 @@ class SingleTurnContext:
         return response
 
     async def yield_interim_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+        """Yield an interim response to the request."""
         return await self.yield_response(response, indicate_typing_afterwards=True, **kwargs)
 
     async def yield_final_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+        """Yield a final response to the request."""
         return await self.yield_response(response, indicate_typing_afterwards=False, **kwargs)
 
     async def yield_from(
         self, another_bot_responses: BotResponses, indicate_typing_afterwards: Optional[bool] = None
     ) -> None:
+        """Yield all the responses from another bot to the request."""
         async for response in another_bot_responses:
             await self.yield_response(response, indicate_typing_afterwards=indicate_typing_afterwards)
