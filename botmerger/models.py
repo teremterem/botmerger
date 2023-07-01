@@ -5,7 +5,14 @@ from uuid import uuid4
 
 from pydantic import Field, UUID4
 
-from botmerger.base import MergedObject, SingleTurnHandler, BotResponses, MessageContent, MessageType
+from botmerger.base import (
+    MergedObject,
+    SingleTurnHandler,
+    SingleTurnContext,
+    BotResponses,
+    MessageContent,
+    MessageType,
+)
 
 
 class MergedParticipant(MergedObject):
@@ -34,6 +41,10 @@ class MergedBot(MergedParticipant):
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
+        if sender is None:
+            sender = SingleTurnContext.this_bot_context.get()
+        if channel is None:
+            channel = SingleTurnContext.channel_context.get()
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
         request = await self.merger.create_message(
             thread_uuid=uuid4(),  # create a brand-new thread
