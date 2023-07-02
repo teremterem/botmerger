@@ -32,7 +32,7 @@ class MergedBot(MergedParticipant):
 
     async def trigger(
         self,
-        request: MessageType,
+        request: MessageType = None,
         sender: Optional["MergedParticipant"] = None,
         channel: Optional["MergedChannel"] = None,
         **kwargs,
@@ -60,7 +60,7 @@ class MergedBot(MergedParticipant):
 
     async def get_final_response(
         self,
-        request: MessageType,
+        request: MessageType = None,
         sender: Optional["MergedParticipant"] = None,
         channel: Optional["MergedChannel"] = None,
         **kwargs,
