@@ -18,6 +18,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
     """Attach a bot to a Discord client."""
 
     async def on_message(discord_message: discord.Message) -> None:
+        # TODO TODO TODO
         """Called when a message is sent to a channel (both a user message and a bot message)."""
         if discord_message.author == discord_client.user:
             # make sure we are not embarking on an infinite loop of responding to our own messages

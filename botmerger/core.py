@@ -20,7 +20,6 @@ from botmerger.base import (
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
 from botmerger.models import (
     MergedBot,
-    MergedChannel,
     MergedUser,
     MergedMessage,
     MergedParticipant,
@@ -49,7 +48,6 @@ class BotMergerBase(BotMerger):
         context = SingleTurnContext(
             merger=self,
             this_bot=bot,
-            channel=request.channel,
             request=request,
             bot_responses=bot_responses,
         )
@@ -123,6 +121,7 @@ class BotMergerBase(BotMerger):
         user_display_name: str,
         **kwargs,
     ) -> MergedChannel:
+        # TODO TODO TODO
         key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
         channel = await self._get_correct_object(key, MergedChannel)
@@ -144,7 +143,6 @@ class BotMergerBase(BotMerger):
 
     async def create_message(
         self,
-        channel: MergedChannel,
         sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
@@ -153,6 +151,7 @@ class BotMergerBase(BotMerger):
         goes_after: Optional[MergedMessage],
         **kwargs,
     ) -> OriginalMessage:
+        # TODO TODO TODO
         if isinstance(content, MergedMessage):
             # we are forwarding a message from another thread (or from a different place in the same thread)
             if indicate_typing_afterwards is None:
@@ -166,7 +165,6 @@ class BotMergerBase(BotMerger):
 
             message = ForwardedMessage(
                 merger=self,
-                channel=channel,
                 sender=sender,
                 original_message=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
@@ -191,7 +189,6 @@ class BotMergerBase(BotMerger):
 
             message = OriginalMessage(
                 merger=self,
-                channel=channel,
                 sender=sender,
                 content=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
@@ -207,7 +204,6 @@ class BotMergerBase(BotMerger):
 
     async def create_next_message(
         self,
-        channel: MergedChannel,
         sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
@@ -215,14 +211,14 @@ class BotMergerBase(BotMerger):
         responds_to: Optional[MergedMessage],
         **kwargs,
     ) -> MergedMessage:
-        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(channel.uuid))
+        # TODO TODO TODO
+        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(parent_context.uuid))
         if latest_message_uuid:
             latest_message = await self.find_message(latest_message_uuid)
         else:
             latest_message = None
 
         return await self.create_message(
-            channel=channel,
             sender=sender,
             content=content,
             indicate_typing_afterwards=indicate_typing_afterwards,
@@ -272,6 +268,7 @@ class BotMergerBase(BotMerger):
 
     # noinspection PyMethodMayBeStatic
     def _generate_channel_key(self, channel_type: str, channel_id: Any) -> Tuple[str, str, str]:
+        # TODO TODO TODO
         """Generate a key for a channel."""
         return "channel_by_type_and_id", channel_type, channel_id
 

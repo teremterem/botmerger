@@ -36,25 +36,22 @@ class MergedBot(MergedParticipant):
         self,
         request: MessageType = None,
         sender: Optional["MergedParticipant"] = None,
-        channel: Optional["MergedChannel"] = None,
         **kwargs,
     ) -> BotResponses:
+        # TODO TODO TODO
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
         # pylint: disable=protected-access
         current_context = SingleTurnContext._current_context.get()
-        # TODO rename to override_sender and override_channel (or rather override_message_ctx ?)
-        # TODO introduce default user (and default channel ?)
+        # TODO override_sender + override_parent_ctx
+        # TODO introduce default user
         if sender is None:
             sender = current_context.this_bot
-        if channel is None:
-            channel = current_context.channel
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
         request = await self.merger.create_message(  # TODO replace with create_next_message ?
             thread_uuid=uuid4(),  # create a brand-new thread
-            channel=channel,
             sender=sender,
             content=request,
             indicate_typing_afterwards=False,
@@ -68,11 +65,12 @@ class MergedBot(MergedParticipant):
         self,
         request: MessageType = None,
         sender: Optional["MergedParticipant"] = None,
-        channel: Optional["MergedChannel"] = None,
         **kwargs,
     ) -> Optional["MergedMessage"]:
+        # TODO TODO TODO
         """Get the final response from the bot for a given request."""
-        responses = await self.trigger(request, sender=sender, channel=channel, **kwargs)
+        # TODO override_sender + override_parent_ctx
+        responses = await self.trigger(request, sender=sender, **kwargs)
         return await responses.get_final_response()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
@@ -94,59 +92,12 @@ class MergedUser(MergedParticipant):
     is_human: bool = Field(True, const=True)
 
 
-class MergedChannel(MergedObject):  # TODO get rid of this class completely ?
-    """A logical channel where interactions between two or more participants happen."""
-
-    channel_type: str
-    channel_id: Any
-    owner: MergedParticipant
-
-    async def next_message_from_owner(
-        self,
-        content: MessageContent,
-        indicate_typing_afterwards: bool = False,
-        responds_to: Optional["MergedMessage"] = None,
-        **kwargs,
-    ) -> "MergedMessage":
-        """
-        Create a new message that goes after the last message in this channel. Mark it as if it was sent by the
-        owner of the channel.
-        """
-        return await self.next_message(
-            sender=self.owner,
-            content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
-            responds_to=responds_to,
-            **kwargs,
-        )
-
-    async def next_message(
-        self,
-        sender: MergedParticipant,
-        content: MessageContent,
-        indicate_typing_afterwards: bool = False,
-        responds_to: Optional["MergedMessage"] = None,
-        **kwargs,
-    ) -> "MergedMessage":
-        """Create a new message that goes after the last message in this channel."""
-        return await self.merger.create_next_message(
-            thread_uuid=self.uuid,  # in this case, the thread is the channel itself
-            channel=self,
-            sender=sender,
-            content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
-            responds_to=responds_to,
-            **kwargs,
-        )
-
-
 class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
-    channel: MergedChannel
-    parent_context: Optional["MergedMessage"]
     sender: MergedParticipant
     indicate_typing_afterwards: bool
+    parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, UUID4, Field
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MergedParticipant
+    from botmerger.models import MergedBot, MergedMessage, MergedParticipant
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
@@ -73,6 +73,7 @@ class BotMerger(ABC):
         user_display_name: str,
         **kwargs,
     ) -> "MergedChannel":
+        # TODO TODO TODO
         """
         Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
         used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
@@ -82,7 +83,6 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_message(
         self,
-        channel: "MergedChannel",
         sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
@@ -99,7 +99,6 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_next_message(
         self,
-        channel: "MergedChannel",
         sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
@@ -243,13 +242,11 @@ class SingleTurnContext:
         self,
         merger: BotMerger,
         this_bot: "MergedBot",
-        channel: "MergedChannel",
         request: "MergedMessage",
         bot_responses: BotResponses,
     ) -> None:
         self.merger = merger
         self.this_bot = this_bot
-        self.channel = channel
         self.request = request
 
         self._bot_responses = bot_responses
@@ -259,7 +256,6 @@ class SingleTurnContext:
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
-            channel=self.channel,
             sender=self.this_bot,
             content=response,
             indicate_typing_afterwards=indicate_typing_afterwards,

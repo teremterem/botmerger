@@ -1,5 +1,5 @@
 """Tests for the MergedMessage subclasses."""
-from botmerger import MergedUser, MergedChannel, InMemoryBotMerger
+from botmerger import MergedUser, InMemoryBotMerger
 from botmerger.models import ForwardedMessage, OriginalMessage
 
 
@@ -10,16 +10,9 @@ def test_original_and_forwarded_message() -> None:
         merger=merger,
         name="name of the user",
     )
-    merged_channel = MergedChannel(
-        merger=merger,
-        channel_type="channel_type",
-        channel_id="channel_id",
-        owner=merged_user,
-    )
 
     original_message = OriginalMessage(
         merger=merger,
-        channel=merged_channel,
         sender=merged_user,
         indicate_typing_afterwards=False,
         content="some content",
@@ -30,7 +23,6 @@ def test_original_and_forwarded_message() -> None:
 
     forwarded_message = ForwardedMessage(
         merger=merger,
-        channel=merged_channel,
         sender=merged_user,
         indicate_typing_afterwards=False,
         original_message=original_message,
