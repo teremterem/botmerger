@@ -279,6 +279,9 @@ class BotMergerBase(BotMerger):
     def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
         """Generate a key for the latest message in a given context."""
         # TODO !!! the thread should be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` !!!
+        # TODO what to do when the same sender calls the same receiver within the same context message multiple times
+        #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
+        #  some other solution ?
         return "latest_message_in_context", context_uuid
 
     # noinspection PyMethodMayBeStatic
