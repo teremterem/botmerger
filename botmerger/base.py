@@ -2,7 +2,9 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
+from collections import deque
 from contextvars import ContextVar
+from contextvars import Token
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
 from uuid import uuid4
 
@@ -163,6 +165,19 @@ class MergedObject(BaseModel):
         return hash(self.uuid)
 
 
+class BaseMessage:
+    """
+    Base class for messages. This is not a Pydantic model. `content` is property that must be implemented by
+    subclasses one way or another (either as a Pydantic field or as a property).
+    """
+
+    original_sender: "MergedParticipant"
+    content: Union[str, Any]
+
+    _previous_msg_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_msg_token_stack")
+    current_msg_context: ContextVar[Optional["MergedMessage"]] = ContextVar("current_msg_context", default=None)
+
+
 class BotResponses:
     """
     A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
@@ -181,6 +196,7 @@ class BotResponses:
     def __aiter__(self) -> "BotResponses":
         return self
 
+    # noinspection PyTypeChecker
     async def __anext__(self) -> "MergedMessage":
         if self._error:
             raise self._error
@@ -223,9 +239,6 @@ class SingleTurnContext:
     single turn handler function to yield a response to the request.
     """
 
-    channel_context: ContextVar[Optional["MergedChannel"]] = ContextVar("channel_context", default=None)
-    this_bot_context: ContextVar[Optional["MergedBot"]] = ContextVar("this_bot_context", default=None)
-
     def __init__(
         self,
         merger: BotMerger,
@@ -240,22 +253,6 @@ class SingleTurnContext:
         self.request = request
 
         self._bot_responses = bot_responses
-        self._channel_backup: Optional["MergedChannel"] = None
-        self._this_bot_backup: Optional["MergedBot"] = None
-
-    def __enter__(self) -> "SingleTurnContext":
-        """Set the context variables to the values of this context object."""
-        self._channel_backup = self.channel_context.get()
-        self._this_bot_backup = self.this_bot_context.get()
-
-        self.channel_context.set(self.channel)
-        self.this_bot_context.set(self.this_bot)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Restore the context variables to their previous values."""
-        self.channel_context.set(self._channel_backup)
-        self.this_bot_context.set(self._this_bot_backup)
 
     async def yield_response(
         self, response: MessageType, indicate_typing_afterwards: Optional[bool] = None, **kwargs

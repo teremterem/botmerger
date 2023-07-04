@@ -1,5 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
+from collections import deque
 from typing import Any, Optional, Union
 from uuid import uuid4
 
@@ -12,6 +13,7 @@ from botmerger.base import (
     BotResponses,
     MessageContent,
     MessageType,
+    BaseMessage,
 )
 
 
@@ -134,16 +136,6 @@ class MergedChannel(MergedObject):
         )
 
 
-class BaseMessage:
-    """
-    Base class for messages. This is not a Pydantic model. `content` is property that must be implemented by
-    subclasses one way or another (either as a Pydantic field or as a property).
-    """
-
-    original_sender: MergedParticipant
-    content: Union[str, Any]
-
-
 class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
@@ -153,6 +145,23 @@ class MergedMessage(BaseMessage, MergedObject):
     indicate_typing_afterwards: bool
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
+
+    def __enter__(self) -> "MergedMessage":
+        """Set this message as the current context."""
+        try:
+            previous_msg_token_stack = self._previous_msg_token_stack.get()
+        except LookupError:
+            previous_msg_token_stack = deque()
+            self._previous_msg_token_stack.set(previous_msg_token_stack)
+
+        previous_msg_token = self.current_msg_context.set(self)  # <- this is the context switch
+        previous_msg_token_stack.append(previous_msg_token)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Restore the message that was the current context before this one."""
+        previous_msg_token = self._previous_msg_token_stack.get().pop()
+        self.current_msg_context.reset(previous_msg_token)
 
 
 class OriginalMessage(MergedMessage):
