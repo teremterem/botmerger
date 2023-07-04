@@ -174,9 +174,6 @@ class BaseMessage:
     original_sender: "MergedParticipant"
     content: Union[str, Any]
 
-    _previous_msg_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_msg_token_stack")
-    current_msg_context: ContextVar[Optional["MergedMessage"]] = ContextVar("current_msg_context", default=None)
-
 
 class BotResponses:
     """
@@ -232,12 +229,15 @@ class BotResponses:
 
 # noinspection PyProtectedMember
 class SingleTurnContext:
-    # pylint: disable=import-outside-toplevel,protected-access,too-many-arguments
+    # pylint: disable=protected-access,too-many-arguments
     """
     A context object that is passed to a single turn handler function. It is meant to be used as a facade for the
     `MergedBot` and `MergedMessage` objects. It also has a method `yield_response` that is meant to be used by the
     single turn handler function to yield a response to the request.
     """
+
+    _previous_ctx_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_ctx_token_stack")
+    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
 
     def __init__(
         self,
@@ -284,3 +284,20 @@ class SingleTurnContext:
         """Yield all the responses from another bot to the request."""
         async for response in another_bot_responses:
             await self.yield_response(response, indicate_typing_afterwards=indicate_typing_afterwards)
+
+    def __enter__(self) -> "SingleTurnContext":
+        """Set this context as the current context."""
+        try:
+            previous_ctx_token_stack = self._previous_ctx_token_stack.get()
+        except LookupError:
+            previous_ctx_token_stack = deque()
+            self._previous_ctx_token_stack.set(previous_ctx_token_stack)
+
+        previous_ctx_token = self._current_context.set(self)  # <- this is the context switch
+        previous_ctx_token_stack.append(previous_ctx_token)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Restore the context that was current before this one."""
+        previous_ctx_token = self._previous_ctx_token_stack.get().pop()
+        self._current_context.reset(previous_ctx_token)

@@ -1,6 +1,5 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from collections import deque
 from typing import Any, Optional, Union
 from uuid import uuid4
 
@@ -43,10 +42,15 @@ class MergedBot(MergedParticipant):
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        current_context = SingleTurnContext._current_context.get()
+        # TODO rename to override_sender and override_channel (or rather override_message_ctx ?)
+        # TODO introduce default user (and default channel ?)
         if sender is None:
-            sender = SingleTurnContext.this_bot_context.get()
+            sender = current_context.this_bot
         if channel is None:
-            channel = SingleTurnContext.channel_context.get()
+            channel = current_context.channel
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
         request = await self.merger.create_message(
             thread_uuid=uuid4(),  # create a brand-new thread
@@ -145,23 +149,6 @@ class MergedMessage(BaseMessage, MergedObject):
     indicate_typing_afterwards: bool
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
-
-    def __enter__(self) -> "MergedMessage":
-        """Set this message as the current context."""
-        try:
-            previous_msg_token_stack = self._previous_msg_token_stack.get()
-        except LookupError:
-            previous_msg_token_stack = deque()
-            self._previous_msg_token_stack.set(previous_msg_token_stack)
-
-        previous_msg_token = self.current_msg_context.set(self)  # <- this is the context switch
-        previous_msg_token_stack.append(previous_msg_token)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Restore the message that was the current context before this one."""
-        previous_msg_token = self._previous_msg_token_stack.get().pop()
-        self.current_msg_context.reset(previous_msg_token)
 
 
 class OriginalMessage(MergedMessage):
