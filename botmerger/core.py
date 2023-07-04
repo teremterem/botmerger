@@ -278,7 +278,7 @@ class BotMergerBase(BotMerger):
     # noinspection PyMethodMayBeStatic
     def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
         """Generate a key for the latest message in a given context."""
-        # TODO !!! the thread should be identified by context_uuid+receiver_uuid !!!
+        # TODO !!! the thread should be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` !!!
         return "latest_message_in_context", context_uuid
 
     # noinspection PyMethodMayBeStatic
