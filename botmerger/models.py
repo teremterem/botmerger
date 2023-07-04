@@ -3,7 +3,7 @@
 from typing import Any, Optional, Union
 from uuid import uuid4
 
-from pydantic import Field, UUID4
+from pydantic import Field
 
 from botmerger.base import (
     MergedObject,
@@ -52,7 +52,7 @@ class MergedBot(MergedParticipant):
         if channel is None:
             channel = current_context.channel
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
-        request = await self.merger.create_message(
+        request = await self.merger.create_message(  # TODO replace with create_next_message ?
             thread_uuid=uuid4(),  # create a brand-new thread
             channel=channel,
             sender=sender,
@@ -94,7 +94,7 @@ class MergedUser(MergedParticipant):
     is_human: bool = Field(True, const=True)
 
 
-class MergedChannel(MergedObject):
+class MergedChannel(MergedObject):  # TODO get rid of this class completely ?
     """A logical channel where interactions between two or more participants happen."""
 
     channel_type: str
@@ -144,7 +144,7 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     channel: MergedChannel
-    thread_uuid: UUID4  # TODO should this be a dedicated MergedThread class ?
+    parent_context: Optional["MergedMessage"]
     sender: MergedParticipant
     indicate_typing_afterwards: bool
     responds_to: Optional["MergedMessage"]

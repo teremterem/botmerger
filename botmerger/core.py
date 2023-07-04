@@ -144,11 +144,11 @@ class BotMergerBase(BotMerger):
 
     async def create_message(
         self,
-        thread_uuid: UUID4,
         channel: MergedChannel,
         sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
+        parent_context: Optional["MergedMessage"],
         responds_to: Optional[MergedMessage],
         goes_after: Optional[MergedMessage],
         **kwargs,
@@ -167,10 +167,10 @@ class BotMergerBase(BotMerger):
             message = ForwardedMessage(
                 merger=self,
                 channel=channel,
-                thread_uuid=thread_uuid,
                 sender=sender,
                 original_message=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
+                parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
                 **kwargs,
@@ -192,26 +192,26 @@ class BotMergerBase(BotMerger):
             message = OriginalMessage(
                 merger=self,
                 channel=channel,
-                thread_uuid=thread_uuid,
                 sender=sender,
                 content=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
+                parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
                 **kwargs,
             )
 
         await self._register_merged_object(message)
-        await self.set_mutable_state(self._generate_latest_message_key(thread_uuid), message.uuid)
+        await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
         return message
 
     async def create_next_message(
         self,
-        thread_uuid: UUID4,
         channel: MergedChannel,
         sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
+        parent_context: Optional["MergedMessage"],
         responds_to: Optional[MergedMessage],
         **kwargs,
     ) -> MergedMessage:
@@ -222,13 +222,13 @@ class BotMergerBase(BotMerger):
             latest_message = None
 
         return await self.create_message(
-            thread_uuid=thread_uuid,
             channel=channel,
             sender=sender,
             content=content,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            parent_context=parent_context,
             responds_to=responds_to,
             goes_after=latest_message,
-            indicate_typing_afterwards=indicate_typing_afterwards,
             **kwargs,
         )
 
@@ -276,9 +276,10 @@ class BotMergerBase(BotMerger):
         return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
-    def _generate_latest_message_key(self, thread_uuid: UUID4) -> Tuple[str, UUID4]:
-        """Generate a key for the latest message in a thread."""
-        return "latest_message_by_thread", thread_uuid
+    def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
+        """Generate a key for the latest message in a given context."""
+        # TODO !!! the thread should be identified by context_uuid+receiver_uuid !!!
+        return "latest_message_in_context", context_uuid
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: Type, key: Any) -> None:

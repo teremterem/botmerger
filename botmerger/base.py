@@ -82,11 +82,11 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_message(
         self,
-        thread_uuid: UUID4,
         channel: "MergedChannel",
         sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
+        parent_context: Optional["MergedMessage"],
         responds_to: Optional["MergedMessage"],
         goes_after: Optional["MergedMessage"],
         **kwargs,
@@ -99,11 +99,11 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_next_message(
         self,
-        thread_uuid: UUID4,
         channel: "MergedChannel",
         sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
+        parent_context: Optional["MergedMessage"],
         responds_to: Optional["MergedMessage"],
         **kwargs,
     ) -> "MergedMessage":
@@ -259,11 +259,11 @@ class SingleTurnContext:
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
-            thread_uuid=self.request.thread_uuid,
             channel=self.channel,
             sender=self.this_bot,
             content=response,
             indicate_typing_afterwards=indicate_typing_afterwards,
+            parent_context=self.request.parent_context,
             responds_to=self.request,
             **kwargs,
         )
