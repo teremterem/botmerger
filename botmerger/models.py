@@ -31,6 +31,7 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
+    # noinspection PyProtectedMember
     async def trigger(
         self,
         request: MessageType = None,
@@ -43,7 +44,6 @@ class MergedBot(MergedParticipant):
         response(s) in an asynchronous manner.
         """
         # pylint: disable=protected-access
-        # noinspection PyProtectedMember
         current_context = SingleTurnContext._current_context.get()
         # TODO rename to override_sender and override_channel (or rather override_message_ctx ?)
         # TODO introduce default user (and default channel ?)
