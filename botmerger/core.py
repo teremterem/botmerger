@@ -41,6 +41,28 @@ class BotMergerBase(BotMerger):
     def __init__(self) -> None:
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
+        self._default_user: Optional[MergedUser] = None
+        self._default_msg_ctx: Optional[MergedMessage] = None
+
+    async def get_default_user(self) -> MergedUser:
+        if not self._default_user:
+            # TODO TODO TODO create_user() method ?
+            self.default_user = MergedUser(merger=self, uuid=self.DEFAULT_USER_UUID, name=self.DEFAULT_USER_NAME)
+            await self._register_merged_object(self._default_user)
+        return self._default_user
+
+    async def get_default_msg_ctx(self) -> MergedMessage:
+        if not self._default_msg_ctx:
+            self._default_msg_ctx = await self.create_message(
+                uuid=self.DEFAULT_MSG_CTX_UUID,
+                sender=self.default_user,
+                content=self.DEFAULT_MSG_CTX_CONTENT,
+                indicate_typing_afterwards=False,
+                parent_context=None,
+                responds_to=None,
+                goes_after=None,
+            )
+        return self._default_msg_ctx
 
     async def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]

@@ -6,14 +6,14 @@ from collections import deque
 from contextvars import ContextVar
 from contextvars import Token
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from pydantic import BaseModel, UUID4, Field
 
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedMessage, MergedParticipant
+    from botmerger.models import MergedBot, MergedMessage, MergedParticipant, MergedUser
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
@@ -27,6 +27,21 @@ class BotMerger(ABC):
     in this library. Almost all the methods of almost all the other classes in this library are just a facade for
     methods of this class.
     """
+
+    DEFAULT_USER_UUID = UUID("440633de-aac2-41ae-80aa-7bbf1be7591b")
+    DEFAULT_MSG_CTX_UUID = UUID("0cff89d8-14a8-49c5-92c5-e5a6445bdb6c")
+
+    DEFAULT_USER_NAME = "USER"
+    DEFAULT_MSG_CTX_CONTENT = "DEFAULT MESSAGE CONTEXT"
+
+    default_user: "MergedUser"
+    default_msg_ctx: "MergedMessage"
+
+    async def get_default_user(self) -> "MergedUser":
+        """Get the default user."""
+
+    async def get_default_msg_ctx(self) -> "MergedMessage":
+        """Get the default message context."""
 
     @abstractmethod
     async def trigger_bot(self, bot: "MergedBot", request: "MergedMessage") -> "BotResponses":
