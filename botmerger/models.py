@@ -56,7 +56,6 @@ class MergedBot(MergedParticipant):
             content=request,
             indicate_typing_afterwards=False,
             responds_to=None,
-            goes_after=None,
             **kwargs,
         )
         return await self.merger.trigger_bot(self, request)

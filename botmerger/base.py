@@ -252,9 +252,9 @@ class SingleTurnContext:
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
-            sender=self.this_bot,
             content=response,
             indicate_typing_afterwards=indicate_typing_afterwards,
+            sender=self.this_bot,
             parent_context=self.request.parent_context,
             responds_to=self.request,
             **kwargs,

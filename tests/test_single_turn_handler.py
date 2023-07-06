@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from botmerger import MergedUser
 from botmerger.base import SingleTurnContext
 from botmerger.core import InMemoryBotMerger
 from botmerger.errors import BotAliasTakenError, ErrorWrapper
@@ -96,15 +95,7 @@ async def test_trigger_bot() -> None:
         await context.yield_final_response({"response": "3"})
         call_mock()
 
-    request = await merger.create_next_message(
-        sender=MergedUser(merger=merger, name="Test User"),
-        content="test request",
-        indicate_typing_afterwards=False,
-        parent_context=None,
-        responds_to=None,
-    )
-
-    responses = await _dummy_bot_func.bot.trigger(request)
+    responses = await _dummy_bot_func.bot.trigger("test request")
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
@@ -136,15 +127,7 @@ async def test_trigger_bot_exception() -> None:
         call_mock()
         raise ValueError("test")
 
-    request = await merger.create_next_message(
-        sender=MergedUser(merger=merger, name="Test User"),
-        content="test request",
-        indicate_typing_afterwards=False,
-        parent_context=None,
-        responds_to=None,
-    )
-
-    responses = await _dummy_bot_func.bot.trigger(request)
+    responses = await _dummy_bot_func.bot.trigger("test request")
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
