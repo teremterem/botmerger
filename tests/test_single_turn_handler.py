@@ -102,7 +102,6 @@ async def test_trigger_bot() -> None:
         indicate_typing_afterwards=False,
         parent_context=None,
         responds_to=None,
-        goes_after=None,
     )
 
     responses = await _dummy_bot_func.bot.trigger(request)
@@ -143,7 +142,6 @@ async def test_trigger_bot_exception() -> None:
         indicate_typing_afterwards=False,
         parent_context=None,
         responds_to=None,
-        goes_after=None,
     )
 
     responses = await _dummy_bot_func.bot.trigger(request)
