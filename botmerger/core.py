@@ -230,7 +230,7 @@ class BotMergerBase(BotMerger):
         indicate_typing_afterwards: Optional[bool],
         sender: Optional[MergedParticipant],
         parent_context: Optional[MergedMessage],
-        responds_to: Optional[MergedMessage],
+        responds_to: Optional[MergedMessage] = None,
         **kwargs,
     ) -> MergedMessage:
         if not sender:

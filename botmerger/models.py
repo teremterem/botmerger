@@ -1,7 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
 from typing import Any, Optional, Union
-from uuid import uuid4
 
 from pydantic import Field
 
@@ -13,6 +12,7 @@ from botmerger.base import (
     MessageContent,
     MessageType,
     BaseMessage,
+    MergedMessage,
 )
 
 
@@ -31,31 +31,31 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
-    # noinspection PyProtectedMember
     async def trigger(
         self,
         request: MessageType = None,
-        sender: Optional["MergedParticipant"] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional[MergedMessage] = None,
         **kwargs,
     ) -> BotResponses:
-        # TODO TODO TODO
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
         # pylint: disable=protected-access
+        # noinspection PyProtectedMember
         current_context = SingleTurnContext._current_context.get()
-        # TODO override_sender + override_parent_ctx
-        # TODO introduce default user
-        if sender is None:
-            sender = current_context.this_bot
+        if current_context:
+            if not override_sender:
+                override_sender = current_context.this_bot
+            if not override_parent_ctx:
+                override_parent_ctx = current_context.request
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
         request = await self.merger.create_next_message(
-            thread_uuid=uuid4(),  # create a brand-new thread
-            sender=sender,
             content=request,
             indicate_typing_afterwards=False,
-            responds_to=None,
+            sender=override_sender,
+            parent_context=override_parent_ctx,
             **kwargs,
         )
         return await self.merger.trigger_bot(self, request)
