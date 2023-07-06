@@ -12,7 +12,6 @@ from botmerger.base import (
     MessageContent,
     MessageType,
     BaseMessage,
-    MergedMessage,
 )
 
 
@@ -35,7 +34,7 @@ class MergedBot(MergedParticipant):
         self,
         request: MessageType = None,
         override_sender: Optional[MergedParticipant] = None,
-        override_parent_ctx: Optional[MergedMessage] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> BotResponses:
         """
@@ -63,13 +62,17 @@ class MergedBot(MergedParticipant):
     async def get_final_response(
         self,
         request: MessageType = None,
-        sender: Optional["MergedParticipant"] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> Optional["MergedMessage"]:
-        # TODO TODO TODO
         """Get the final response from the bot for a given request."""
-        # TODO override_sender + override_parent_ctx
-        responses = await self.trigger(request, sender=sender, **kwargs)
+        responses = await self.trigger(
+            request,
+            override_sender=override_sender,
+            override_parent_ctx=override_parent_ctx,
+            **kwargs,
+        )
         return await responses.get_final_response()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
