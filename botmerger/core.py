@@ -173,7 +173,6 @@ class BotMergerBase(BotMerger):
         goes_after: Optional[MergedMessage],
         **kwargs,
     ) -> OriginalMessage:
-        # TODO TODO TODO
         if isinstance(content, MergedMessage):
             # we are forwarding a message from another thread (or from a different place in the same thread)
             if indicate_typing_afterwards is None:
