@@ -96,22 +96,6 @@ class BotMerger(ABC):
         """
 
     @abstractmethod
-    async def create_message(
-        self,
-        sender: "MergedParticipant",
-        content: "MessageType",
-        indicate_typing_afterwards: Optional[bool],
-        parent_context: Optional["MergedMessage"],
-        responds_to: Optional["MergedMessage"],
-        goes_after: Optional["MergedMessage"],
-        **kwargs,
-    ) -> "MergedMessage":
-        """
-        Create a message in a given channel. If `content` is another `MergedMessage` instance, then
-        `ForwardedMessage` will be created instead of `OriginalMessage`.
-        """
-
-    @abstractmethod
     async def create_next_message(
         self,
         sender: "MergedParticipant",

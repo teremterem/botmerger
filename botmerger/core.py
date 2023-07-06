@@ -53,7 +53,7 @@ class BotMergerBase(BotMerger):
 
     async def get_default_msg_ctx(self) -> MergedMessage:
         if not self._default_msg_ctx:
-            self._default_msg_ctx = await self.create_message(
+            self._default_msg_ctx = await self._create_message(
                 uuid=self.DEFAULT_MSG_CTX_UUID,
                 sender=self.default_user,
                 content=self.DEFAULT_MSG_CTX_CONTENT,
@@ -163,7 +163,7 @@ class BotMergerBase(BotMerger):
 
         return channel
 
-    async def create_message(
+    async def _create_message(
         self,
         sender: MergedParticipant,
         content: MessageType,
@@ -233,14 +233,16 @@ class BotMergerBase(BotMerger):
         responds_to: Optional[MergedMessage],
         **kwargs,
     ) -> MergedMessage:
-        # TODO TODO TODO
+        if not parent_context:
+            parent_context = await self.get_default_msg_ctx()
+
         latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(parent_context.uuid))
         if latest_message_uuid:
             latest_message = await self.find_message(latest_message_uuid)
         else:
             latest_message = None
 
-        return await self.create_message(
+        return await self._create_message(
             sender=sender,
             content=content,
             indicate_typing_afterwards=indicate_typing_afterwards,

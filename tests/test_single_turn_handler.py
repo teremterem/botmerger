@@ -96,7 +96,7 @@ async def test_trigger_bot() -> None:
         await context.yield_final_response({"response": "3"})
         call_mock()
 
-    request = await merger.create_message(
+    request = await merger.create_next_message(
         sender=MergedUser(merger=merger, name="Test User"),
         content="test request",
         indicate_typing_afterwards=False,
@@ -137,7 +137,7 @@ async def test_trigger_bot_exception() -> None:
         call_mock()
         raise ValueError("test")
 
-    request = await merger.create_message(
+    request = await merger.create_next_message(
         sender=MergedUser(merger=merger, name="Test User"),
         content="test request",
         indicate_typing_afterwards=False,

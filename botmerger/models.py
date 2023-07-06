@@ -50,7 +50,7 @@ class MergedBot(MergedParticipant):
         if sender is None:
             sender = current_context.this_bot
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
-        request = await self.merger.create_message(  # TODO replace with create_next_message ?
+        request = await self.merger.create_next_message(
             thread_uuid=uuid4(),  # create a brand-new thread
             sender=sender,
             content=request,
