@@ -34,9 +34,6 @@ class BotMerger(ABC):
     DEFAULT_USER_NAME = "USER"
     DEFAULT_MSG_CTX_CONTENT = "DEFAULT MESSAGE CONTEXT"
 
-    default_user: "MergedUser"
-    default_msg_ctx: "MergedMessage"
-
     async def get_default_user(self) -> "MergedUser":
         """Get the default user."""
 
@@ -98,9 +95,9 @@ class BotMerger(ABC):
     @abstractmethod
     async def create_next_message(
         self,
-        sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
+        sender: Optional["MergedParticipant"],
         parent_context: Optional["MergedMessage"],
         responds_to: Optional["MergedMessage"],
         **kwargs,

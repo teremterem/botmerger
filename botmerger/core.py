@@ -47,7 +47,7 @@ class BotMergerBase(BotMerger):
     async def get_default_user(self) -> MergedUser:
         if not self._default_user:
             # TODO TODO TODO create_user() method ?
-            self.default_user = MergedUser(merger=self, uuid=self.DEFAULT_USER_UUID, name=self.DEFAULT_USER_NAME)
+            self._default_user = MergedUser(merger=self, uuid=self.DEFAULT_USER_UUID, name=self.DEFAULT_USER_NAME)
             await self._register_merged_object(self._default_user)
         return self._default_user
 
@@ -55,9 +55,9 @@ class BotMergerBase(BotMerger):
         if not self._default_msg_ctx:
             self._default_msg_ctx = await self._create_message(
                 uuid=self.DEFAULT_MSG_CTX_UUID,
-                sender=self.default_user,
                 content=self.DEFAULT_MSG_CTX_CONTENT,
                 indicate_typing_afterwards=False,
+                sender=await self.get_default_user(),
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
@@ -165,10 +165,10 @@ class BotMergerBase(BotMerger):
 
     async def _create_message(
         self,
-        sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
-        parent_context: Optional["MergedMessage"],
+        sender: MergedParticipant,
+        parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
         goes_after: Optional[MergedMessage],
         **kwargs,
@@ -221,18 +221,21 @@ class BotMergerBase(BotMerger):
             )
 
         await self._register_merged_object(message)
-        await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
+        if message.parent_context:
+            await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
         return message
 
     async def create_next_message(
         self,
-        sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
-        parent_context: Optional["MergedMessage"],
+        sender: Optional[MergedParticipant],
+        parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
         **kwargs,
     ) -> MergedMessage:
+        if not sender:
+            sender = await self.get_default_user()
         if not parent_context:
             parent_context = await self.get_default_msg_ctx()
 
@@ -243,9 +246,9 @@ class BotMergerBase(BotMerger):
             latest_message = None
 
         return await self._create_message(
-            sender=sender,
             content=content,
             indicate_typing_afterwards=indicate_typing_afterwards,
+            sender=sender,
             parent_context=parent_context,
             responds_to=responds_to,
             goes_after=latest_message,
