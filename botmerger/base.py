@@ -83,7 +83,6 @@ class BotMerger(ABC):
         channel_type: str,
         channel_id: Any,
         user_display_name: str,
-        **kwargs,
     ) -> "MergedMessage":
         """
         Find or create a channel with a user as its owner. The channel is represented by a MergedMessage object that

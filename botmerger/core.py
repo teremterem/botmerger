@@ -5,6 +5,7 @@ import dataclasses
 import logging
 from abc import abstractmethod
 from typing import Any, Optional, Tuple, Type, Dict
+from uuid import UUID
 
 from pydantic import UUID4, BaseModel
 
@@ -46,9 +47,7 @@ class BotMergerBase(BotMerger):
 
     async def get_default_user(self) -> MergedUser:
         if not self._default_user:
-            # TODO TODO TODO create_user() method ?
-            self._default_user = MergedUser(merger=self, uuid=self.DEFAULT_USER_UUID, name=self.DEFAULT_USER_NAME)
-            await self._register_merged_object(self._default_user)
+            self._default_user = await self.create_user(name=self.DEFAULT_USER_NAME, uuid=self.DEFAULT_USER_UUID)
         return self._default_user
 
     async def get_default_msg_ctx(self) -> MergedMessage:
@@ -141,11 +140,10 @@ class BotMergerBase(BotMerger):
         channel_type: str,
         channel_id: Any,
         user_display_name: str,
-        **kwargs,
     ) -> MergedMessage:
         key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
-        channel_msg_uuid = await self._get_correct_object(key, MergedMessage)
+        channel_msg_uuid = await self._get_correct_object(key, UUID)
         if channel_msg_uuid:
             channel_msg = await self.find_message(channel_msg_uuid)
         else:
@@ -159,7 +157,10 @@ class BotMergerBase(BotMerger):
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
-                **kwargs,
+                extra_fields={
+                    "channel_type": channel_type,
+                    "channel_id": channel_id,
+                },
             )
             await self._register_immutable_object(key, channel_msg.uuid)
 
@@ -301,18 +302,16 @@ class BotMergerBase(BotMerger):
 
     # noinspection PyMethodMayBeStatic
     def _generate_channel_key(self, channel_type: str, channel_id: Any) -> Tuple[str, str, str]:
-        # TODO TODO TODO
         """Generate a key for a channel."""
         return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
     def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
         """Generate a key for the latest message in a given context."""
-        # TODO TODO TODO
-        #  !!! the thread should be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` !!!
+        # TODO should the thread be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` ? anything else ?
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
         #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
-        #  some other solution ?
+        #  some other solution ? Maybe some random identifier stored in a ContextVar ?
         return "latest_message_in_context", context_uuid
 
     # noinspection PyMethodMayBeStatic
