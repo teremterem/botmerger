@@ -84,13 +84,18 @@ class BotMerger(ABC):
         channel_id: Any,
         user_display_name: str,
         **kwargs,
-    ) -> "MergedChannel":
-        # TODO TODO TODO
+    ) -> "MergedMessage":
         """
-        Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
-        used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
-        exist and is ignored if the channel already exists.
+        Find or create a channel with a user as its owner. The channel is represented by a MergedMessage object that
+        will serve as parent context for other MergedMessage objects (actual messages that are sent by the user
+        via this channel). Parameters `channel_type` and `channel_specific_id` are used to look up the channel.
+        Parameter `user_display_name` is used to create a user if the channel does not exist and is ignored if the
+        channel already exists.
         """
+
+    @abstractmethod
+    async def create_user(self, name: str, **kwargs) -> "MergedUser":
+        """Create a user."""
 
     @abstractmethod
     async def create_next_message(

@@ -142,26 +142,33 @@ class BotMergerBase(BotMerger):
         channel_id: Any,
         user_display_name: str,
         **kwargs,
-    ) -> MergedChannel:
-        # TODO TODO TODO
+    ) -> MergedMessage:
         key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
-        channel = await self._get_correct_object(key, MergedChannel)
+        channel_msg_uuid = await self._get_correct_object(key, MergedMessage)
+        if channel_msg_uuid:
+            channel_msg = await self.find_message(channel_msg_uuid)
+        else:
+            channel_msg = None
 
-        if not channel:
-            user = MergedUser(merger=self, name=user_display_name, **kwargs)
-            await self._register_merged_object(user)
-
-            channel = MergedChannel(
-                merger=self,
-                channel_type=channel_type,
-                channel_id=channel_id,
-                owner=user,
+        if not channel_msg:
+            channel_msg = await self._create_message(
+                content=f"{user_display_name}'s channel",
+                indicate_typing_afterwards=False,
+                sender=await self.create_user(name=user_display_name),
+                parent_context=None,
+                responds_to=None,
+                goes_after=None,
+                **kwargs,
             )
-            await self._register_immutable_object(key, channel)
-            await self._register_merged_object(user)
+            await self._register_immutable_object(key, channel_msg.uuid)
 
-        return channel
+        return channel_msg
+
+    async def create_user(self, name: str, **kwargs) -> MergedUser:
+        user = MergedUser(merger=self, name=name, **kwargs)
+        await self._register_merged_object(user)
+        return user
 
     async def _create_message(
         self,
