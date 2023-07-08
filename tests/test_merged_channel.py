@@ -10,8 +10,8 @@ async def test_find_or_create_user_channel():
     Test the `find_or_create_user_channel` method.
     - Assert that the same channel is returned when the same channel type and channel id are provided.
     - Assert that different channels are returned when different channel types or channel ids are provided.
-    - Assert that the owner is the same when the same channel is returned.
-    - Assert that the owner is different when different channels are returned.
+    - Assert that the user is the same when the same channel is returned.
+    - Assert that the users are different when different channels are returned.
     """
     merger = InMemoryBotMerger()
 

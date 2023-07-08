@@ -18,24 +18,22 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
     """Attach a bot to a Discord client."""
 
     async def on_message(discord_message: discord.Message) -> None:
-        # TODO TODO TODO
         """Called when a message is sent to a channel (both a user message and a bot message)."""
         if discord_message.author == discord_client.user:
             # make sure we are not embarking on an infinite loop of responding to our own messages
             return
 
         try:
-            merged_channel = await bot.merger.find_or_create_user_channel(
+            channel_msg_ctx = await bot.merger.find_or_create_user_channel(
                 channel_type="discord",
                 channel_id=discord_message.channel.id,
                 user_display_name=discord_message.author.name,
             )
 
-            # prefix_command = discord_message.content.startswith("!")
-            # new_conversation = prefix_command
-
-            user_request = await merged_channel.next_message_from_owner(
+            bot_responses = await bot.trigger(
                 discord_message.content,
+                override_sender=channel_msg_ctx.sender,
+                override_parent_ctx=channel_msg_ctx,
                 # extra_fields={
                 #     # TODO is this unsecure ? (given that MergedMessage objects will be passed around between
                 #     #  BotMerger distributed nodes in the future)
@@ -43,9 +41,6 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                 #     "discord_message_id": discord_message.id,
                 # },
             )
-            # # TODO bring the following line back when we figure out what is our philosophy on channels and threads
-            # bot_responses = await bot.trigger(user_request)
-            bot_responses = await bot.merger.trigger_bot(bot, user_request)
 
             async for response in _iterate_over_responses(bot_responses, discord_message.channel.typing()):
                 response_content = response.content
