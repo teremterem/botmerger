@@ -2,15 +2,18 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
+from collections import deque
+from contextvars import ContextVar
+from contextvars import Token
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from pydantic import BaseModel, UUID4, Field
 
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedChannel, MergedMessage, MergedParticipant
+    from botmerger.models import MergedBot, MergedMessage, MergedParticipant, MergedUser
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
@@ -24,6 +27,18 @@ class BotMerger(ABC):
     in this library. Almost all the methods of almost all the other classes in this library are just a facade for
     methods of this class.
     """
+
+    DEFAULT_USER_UUID = UUID("440633de-aac2-41ae-80aa-7bbf1be7591b")
+    DEFAULT_MSG_CTX_UUID = UUID("0cff89d8-14a8-49c5-92c5-e5a6445bdb6c")
+
+    DEFAULT_USER_NAME = "USER"
+    DEFAULT_MSG_CTX_CONTENT = "DEFAULT MESSAGE CONTEXT"
+
+    async def get_default_user(self) -> "MergedUser":
+        """Get the default user."""
+
+    async def get_default_msg_ctx(self) -> "MergedMessage":
+        """Get the default message context."""
 
     @abstractmethod
     async def trigger_bot(self, bot: "MergedBot", request: "MergedMessage") -> "BotResponses":
@@ -68,40 +83,27 @@ class BotMerger(ABC):
         channel_type: str,
         channel_id: Any,
         user_display_name: str,
-        **kwargs,
-    ) -> "MergedChannel":
+    ) -> "MergedMessage":
         """
-        Find or create a channel with a user as its owner. Parameters `channel_type` and `channel_specific_id` are
-        used to look up the channel. Parameter `user_display_name` is used to create a user if the channel does not
-        exist and is ignored if the channel already exists.
+        Find or create a channel with a user as its owner. The channel is represented by a MergedMessage object that
+        will serve as parent context for other MergedMessage objects (actual messages that are sent by the user
+        via this channel). Parameters `channel_type` and `channel_specific_id` are used to look up the channel.
+        Parameter `user_display_name` is used to create a user if the channel does not exist and is ignored if the
+        channel already exists.
         """
 
     @abstractmethod
-    async def create_message(
-        self,
-        thread_uuid: UUID4,
-        channel: "MergedChannel",
-        sender: "MergedParticipant",
-        content: "MessageType",
-        indicate_typing_afterwards: Optional[bool],
-        responds_to: Optional["MergedMessage"],
-        goes_after: Optional["MergedMessage"],
-        **kwargs,
-    ) -> "MergedMessage":
-        """
-        Create a message in a given channel. If `content` is another `MergedMessage` instance, then
-        `ForwardedMessage` will be created instead of `OriginalMessage`.
-        """
+    async def create_user(self, name: str, **kwargs) -> "MergedUser":
+        """Create a user."""
 
     @abstractmethod
     async def create_next_message(
         self,
-        thread_uuid: UUID4,
-        channel: "MergedChannel",
-        sender: "MergedParticipant",
         content: "MessageType",
         indicate_typing_afterwards: Optional[bool],
-        responds_to: Optional["MergedMessage"],
+        sender: Optional["MergedParticipant"],
+        parent_context: Optional["MergedMessage"],
+        responds_to: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> "MergedMessage":
         """
@@ -162,6 +164,16 @@ class MergedObject(BaseModel):
         return hash(self.uuid)
 
 
+class BaseMessage:
+    """
+    Base class for messages. This is not a Pydantic model. `content` is property that must be implemented by
+    subclasses one way or another (either as a Pydantic field or as a property).
+    """
+
+    original_sender: "MergedParticipant"
+    content: Union[str, Any]
+
+
 class BotResponses:
     """
     A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
@@ -180,6 +192,7 @@ class BotResponses:
     def __aiter__(self) -> "BotResponses":
         return self
 
+    # noinspection PyTypeChecker
     async def __anext__(self) -> "MergedMessage":
         if self._error:
             raise self._error
@@ -215,36 +228,38 @@ class BotResponses:
 
 # noinspection PyProtectedMember
 class SingleTurnContext:
-    # pylint: disable=import-outside-toplevel,protected-access,too-many-arguments
+    # pylint: disable=protected-access,too-many-arguments
     """
     A context object that is passed to a single turn handler function. It is meant to be used as a facade for the
     `MergedBot` and `MergedMessage` objects. It also has a method `yield_response` that is meant to be used by the
     single turn handler function to yield a response to the request.
     """
 
+    _previous_ctx_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_ctx_token_stack")
+    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
+
     def __init__(
         self,
         merger: BotMerger,
         this_bot: "MergedBot",
-        channel: "MergedChannel",
         request: "MergedMessage",
         bot_responses: BotResponses,
     ) -> None:
         self.merger = merger
         self.this_bot = this_bot
-        self.channel = channel
         self.request = request
+
         self._bot_responses = bot_responses
 
     async def yield_response(
         self, response: MessageType, indicate_typing_afterwards: Optional[bool] = None, **kwargs
     ) -> "MergedMessage":
+        """Yield a response to the request."""
         response = await self.merger.create_next_message(
-            thread_uuid=self.request.thread_uuid,
-            channel=self.channel,
-            sender=self.this_bot,
             content=response,
             indicate_typing_afterwards=indicate_typing_afterwards,
+            sender=self.this_bot,
+            parent_context=self.request.parent_context,
             responds_to=self.request,
             **kwargs,
         )
@@ -252,13 +267,33 @@ class SingleTurnContext:
         return response
 
     async def yield_interim_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+        """Yield an interim response to the request."""
         return await self.yield_response(response, indicate_typing_afterwards=True, **kwargs)
 
     async def yield_final_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+        """Yield a final response to the request."""
         return await self.yield_response(response, indicate_typing_afterwards=False, **kwargs)
 
     async def yield_from(
         self, another_bot_responses: BotResponses, indicate_typing_afterwards: Optional[bool] = None
     ) -> None:
+        """Yield all the responses from another bot to the request."""
         async for response in another_bot_responses:
             await self.yield_response(response, indicate_typing_afterwards=indicate_typing_afterwards)
+
+    def __enter__(self) -> "SingleTurnContext":
+        """Set this context as the current context."""
+        try:
+            previous_ctx_token_stack = self._previous_ctx_token_stack.get()
+        except LookupError:
+            previous_ctx_token_stack = deque()
+            self._previous_ctx_token_stack.set(previous_ctx_token_stack)
+
+        previous_ctx_token = self._current_context.set(self)  # <- this is the context switch
+        previous_ctx_token_stack.append(previous_ctx_token)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Restore the context that was current before this one."""
+        previous_ctx_token = self._previous_ctx_token_stack.get().pop()
+        self._current_context.reset(previous_ctx_token)

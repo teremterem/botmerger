@@ -5,6 +5,7 @@ import dataclasses
 import logging
 from abc import abstractmethod
 from typing import Any, Optional, Tuple, Type, Dict
+from uuid import UUID
 
 from pydantic import UUID4, BaseModel
 
@@ -20,7 +21,6 @@ from botmerger.base import (
 from botmerger.errors import BotAliasTakenError, BotNotFoundError
 from botmerger.models import (
     MergedBot,
-    MergedChannel,
     MergedUser,
     MergedMessage,
     MergedParticipant,
@@ -42,6 +42,26 @@ class BotMergerBase(BotMerger):
     def __init__(self) -> None:
         super().__init__()
         self._single_turn_handlers: Dict[UUID4, SingleTurnHandler] = {}
+        self._default_user: Optional[MergedUser] = None
+        self._default_msg_ctx: Optional[MergedMessage] = None
+
+    async def get_default_user(self) -> MergedUser:
+        if not self._default_user:
+            self._default_user = await self.create_user(name=self.DEFAULT_USER_NAME, uuid=self.DEFAULT_USER_UUID)
+        return self._default_user
+
+    async def get_default_msg_ctx(self) -> MergedMessage:
+        if not self._default_msg_ctx:
+            self._default_msg_ctx = await self._create_message(
+                uuid=self.DEFAULT_MSG_CTX_UUID,
+                content=self.DEFAULT_MSG_CTX_CONTENT,
+                indicate_typing_afterwards=False,
+                sender=await self.get_default_user(),
+                parent_context=None,
+                responds_to=None,
+                goes_after=None,
+            )
+        return self._default_msg_ctx
 
     async def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
@@ -49,7 +69,6 @@ class BotMergerBase(BotMerger):
         context = SingleTurnContext(
             merger=self,
             this_bot=bot,
-            channel=request.channel,
             request=request,
             bot_responses=bot_responses,
         )
@@ -60,7 +79,8 @@ class BotMergerBase(BotMerger):
     async def _run_single_turn_handler(self, handler: SingleTurnHandler, context: SingleTurnContext) -> None:
         # pylint: disable=broad-except,protected-access
         try:
-            await handler(context)
+            with context:
+                await handler(context)
         except Exception as exc:
             logger.debug(exc, exc_info=exc)
             context._bot_responses._response_queue.put_nowait(exc)
@@ -107,7 +127,7 @@ class BotMergerBase(BotMerger):
             handler.bot = bot
         except AttributeError:
             # the trick with setting attributes on a function does not work with methods, but that's fine
-            logger.debug("could not set attributes on %r", handler)
+            logger.debug("could not set `bot` attribute on %r", handler)
 
     async def find_bot(self, alias: str) -> MergedBot:
         bot = await self._get_bot(alias)
@@ -120,34 +140,43 @@ class BotMergerBase(BotMerger):
         channel_type: str,
         channel_id: Any,
         user_display_name: str,
-        **kwargs,
-    ) -> MergedChannel:
+    ) -> MergedMessage:
         key = self._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
 
-        channel = await self._get_correct_object(key, MergedChannel)
+        channel_msg_uuid = await self._get_correct_object(key, UUID)
+        if channel_msg_uuid:
+            channel_msg = await self.find_message(channel_msg_uuid)
+        else:
+            channel_msg = None
 
-        if not channel:
-            user = MergedUser(merger=self, name=user_display_name, **kwargs)
-            await self._register_merged_object(user)
-
-            channel = MergedChannel(
-                merger=self,
-                channel_type=channel_type,
-                channel_id=channel_id,
-                owner=user,
+        if not channel_msg:
+            channel_msg = await self._create_message(
+                content=f"{user_display_name}'s channel",
+                indicate_typing_afterwards=False,
+                sender=await self.create_user(name=user_display_name),
+                parent_context=None,
+                responds_to=None,
+                goes_after=None,
+                extra_fields={
+                    "channel_type": channel_type,
+                    "channel_id": channel_id,
+                },
             )
-            await self._register_immutable_object(key, channel)
-            await self._register_merged_object(user)
+            await self._register_immutable_object(key, channel_msg.uuid)
 
-        return channel
+        return channel_msg
 
-    async def create_message(
+    async def create_user(self, name: str, **kwargs) -> MergedUser:
+        user = MergedUser(merger=self, name=name, **kwargs)
+        await self._register_merged_object(user)
+        return user
+
+    async def _create_message(
         self,
-        thread_uuid: UUID4,
-        channel: MergedChannel,
-        sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
+        sender: MergedParticipant,
+        parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
         goes_after: Optional[MergedMessage],
         **kwargs,
@@ -165,11 +194,10 @@ class BotMergerBase(BotMerger):
 
             message = ForwardedMessage(
                 merger=self,
-                channel=channel,
-                thread_uuid=thread_uuid,
                 sender=sender,
                 original_message=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
+                parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
                 **kwargs,
@@ -190,44 +218,47 @@ class BotMergerBase(BotMerger):
 
             message = OriginalMessage(
                 merger=self,
-                channel=channel,
-                thread_uuid=thread_uuid,
                 sender=sender,
                 content=content,
                 indicate_typing_afterwards=indicate_typing_afterwards,
+                parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
                 **kwargs,
             )
 
         await self._register_merged_object(message)
-        await self.set_mutable_state(self._generate_latest_message_key(thread_uuid), message.uuid)
+        if message.parent_context:
+            await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
         return message
 
     async def create_next_message(
         self,
-        thread_uuid: UUID4,
-        channel: MergedChannel,
-        sender: MergedParticipant,
         content: MessageType,
         indicate_typing_afterwards: Optional[bool],
-        responds_to: Optional[MergedMessage],
+        sender: Optional[MergedParticipant],
+        parent_context: Optional[MergedMessage],
+        responds_to: Optional[MergedMessage] = None,
         **kwargs,
     ) -> MergedMessage:
-        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(channel.uuid))
+        if not sender:
+            sender = await self.get_default_user()
+        if not parent_context:
+            parent_context = await self.get_default_msg_ctx()
+
+        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(parent_context.uuid))
         if latest_message_uuid:
             latest_message = await self.find_message(latest_message_uuid)
         else:
             latest_message = None
 
-        return await self.create_message(
-            thread_uuid=thread_uuid,
-            channel=channel,
-            sender=sender,
+        return await self._create_message(
             content=content,
+            indicate_typing_afterwards=indicate_typing_afterwards,
+            sender=sender,
+            parent_context=parent_context,
             responds_to=responds_to,
             goes_after=latest_message,
-            indicate_typing_afterwards=indicate_typing_afterwards,
             **kwargs,
         )
 
@@ -275,9 +306,13 @@ class BotMergerBase(BotMerger):
         return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
-    def _generate_latest_message_key(self, thread_uuid: UUID4) -> Tuple[str, UUID4]:
-        """Generate a key for the latest message in a thread."""
-        return "latest_message_by_thread", thread_uuid
+    def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
+        """Generate a key for the latest message in a given context."""
+        # TODO should the thread be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` ? anything else ?
+        # TODO what to do when the same sender calls the same receiver within the same context message multiple times
+        #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
+        #  some other solution ? Maybe some random identifier stored in a ContextVar ?
+        return "latest_message_in_context", context_uuid
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: Type, key: Any) -> None:

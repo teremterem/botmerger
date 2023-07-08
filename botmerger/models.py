@@ -1,11 +1,18 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
 from typing import Any, Optional, Union
-from uuid import uuid4
 
-from pydantic import Field, UUID4
+from pydantic import Field
 
-from botmerger.base import MergedObject, SingleTurnHandler, BotResponses, MessageContent, MessageType
+from botmerger.base import (
+    MergedObject,
+    SingleTurnHandler,
+    SingleTurnContext,
+    BotResponses,
+    MessageContent,
+    MessageType,
+    BaseMessage,
+)
 
 
 class MergedParticipant(MergedObject):
@@ -25,50 +32,47 @@ class MergedBot(MergedParticipant):
 
     async def trigger(
         self,
-        request: MessageType,
-        sender: Optional["MergedParticipant"] = None,
-        channel: Optional["MergedChannel"] = None,
+        request: MessageType = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> BotResponses:
         """
         Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        if isinstance(request, MergedMessage):
-            if sender:
-                raise ValueError("sender is not allowed if request is a MergedMessage")
-            if channel:
-                raise ValueError("channel is not allowed if request is a MergedMessage")
-            if kwargs:
-                raise ValueError("additional keyword arguments are not allowed if request is a MergedMessage")
-
-        else:
-            if not sender:
-                raise ValueError("sender is required if request is not a MergedMessage")
-            if not channel:
-                raise ValueError("channel is required if request is not a MergedMessage")
-
-            request = await self.merger.create_message(
-                thread_uuid=uuid4(),  # create a brand-new thread
-                channel=channel,
-                sender=sender,
-                content=request,
-                indicate_typing_afterwards=False,
-                responds_to=None,
-                goes_after=None,
-                **kwargs,
-            )
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        current_context = SingleTurnContext._current_context.get()
+        if current_context:
+            if not override_sender:
+                override_sender = current_context.this_bot
+            if not override_parent_ctx:
+                override_parent_ctx = current_context.request
+        # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
+        request = await self.merger.create_next_message(
+            content=request,
+            indicate_typing_afterwards=False,
+            sender=override_sender,
+            parent_context=override_parent_ctx,
+            **kwargs,
+        )
         return await self.merger.trigger_bot(self, request)
 
     async def get_final_response(
         self,
-        request: MessageType,
-        sender: Optional["MergedParticipant"] = None,
-        channel: Optional["MergedChannel"] = None,
+        request: MessageType = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
-        responses = await self.trigger(request, sender=sender, channel=channel, **kwargs)
+        responses = await self.trigger(
+            request,
+            override_sender=override_sender,
+            override_parent_ctx=override_parent_ctx,
+            **kwargs,
+        )
         return await responses.get_final_response()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
@@ -90,68 +94,12 @@ class MergedUser(MergedParticipant):
     is_human: bool = Field(True, const=True)
 
 
-class MergedChannel(MergedObject):
-    """A logical channel where interactions between two or more participants happen."""
-
-    channel_type: str
-    channel_id: Any
-    owner: MergedParticipant
-
-    async def next_message_from_owner(
-        self,
-        content: MessageContent,
-        indicate_typing_afterwards: bool = False,
-        responds_to: Optional["MergedMessage"] = None,
-        **kwargs,
-    ) -> "MergedMessage":
-        """
-        Create a new message that goes after the last message in this channel. Mark it as if it was sent by the
-        owner of the channel.
-        """
-        return await self.next_message(
-            sender=self.owner,
-            content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
-            responds_to=responds_to,
-            **kwargs,
-        )
-
-    async def next_message(
-        self,
-        sender: MergedParticipant,
-        content: MessageContent,
-        indicate_typing_afterwards: bool = False,
-        responds_to: Optional["MergedMessage"] = None,
-        **kwargs,
-    ) -> "MergedMessage":
-        """Create a new message that goes after the last message in this channel."""
-        return await self.merger.create_next_message(
-            thread_uuid=self.uuid,  # in this case, the thread is the channel itself
-            channel=self,
-            sender=sender,
-            content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
-            responds_to=responds_to,
-            **kwargs,
-        )
-
-
-class BaseMessage:
-    """
-    Base class for messages. This is not a Pydantic model. `content` is property that must be implemented by
-    subclasses one way or another (either as a Pydantic field or as a property).
-    """
-
-    content: Union[str, Any]
-
-
 class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
-    channel: MergedChannel
-    thread_uuid: UUID4  # TODO should this be a dedicated MergedThread class ?
     sender: MergedParticipant
     indicate_typing_afterwards: bool
+    parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
 
@@ -161,6 +109,11 @@ class OriginalMessage(MergedMessage):
 
     content: Union[str, Any]
 
+    @property
+    def original_sender(self) -> MergedParticipant:
+        """For an original message, the original sender is the same as the sender."""
+        return self.sender
+
 
 class ForwardedMessage(MergedMessage):
     """
@@ -169,6 +122,11 @@ class ForwardedMessage(MergedMessage):
     """
 
     original_message: OriginalMessage
+
+    @property
+    def original_sender(self) -> MergedParticipant:
+        """The original sender of the forwarded message."""
+        return self.original_message.sender
 
     @property
     def content(self) -> MessageContent:

@@ -7,7 +7,7 @@ non-trivial user requests.
 ## 📦 Installation
 
 ```shell
-pip install --upgrade botmerger
+pip install -U botmerger
 ```
 
 ## 🚀 Quickstart
