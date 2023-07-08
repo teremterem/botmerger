@@ -100,7 +100,7 @@ class BotMerger(ABC):
     async def create_next_message(
         self,
         content: "MessageType",
-        indicate_typing_afterwards: Optional[bool],
+        still_thinking: Optional[bool],
         sender: Optional["MergedParticipant"],
         parent_context: Optional["MergedMessage"],
         responds_to: Optional["MergedMessage"] = None,
@@ -252,12 +252,12 @@ class SingleTurnContext:
         self._bot_responses = bot_responses
 
     async def yield_response(
-        self, response: MessageType, indicate_typing_afterwards: Optional[bool] = None, **kwargs
+        self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
             content=response,
-            indicate_typing_afterwards=indicate_typing_afterwards,
+            still_thinking=still_thinking,
             sender=self.this_bot,
             parent_context=self.request.parent_context,
             responds_to=self.request,
@@ -268,18 +268,16 @@ class SingleTurnContext:
 
     async def yield_interim_response(self, response: MessageType, **kwargs) -> "MergedMessage":
         """Yield an interim response to the request."""
-        return await self.yield_response(response, indicate_typing_afterwards=True, **kwargs)
+        return await self.yield_response(response, still_thinking=True, **kwargs)
 
     async def yield_final_response(self, response: MessageType, **kwargs) -> "MergedMessage":
         """Yield a final response to the request."""
-        return await self.yield_response(response, indicate_typing_afterwards=False, **kwargs)
+        return await self.yield_response(response, still_thinking=False, **kwargs)
 
-    async def yield_from(
-        self, another_bot_responses: BotResponses, indicate_typing_afterwards: Optional[bool] = None
-    ) -> None:
+    async def yield_from(self, another_bot_responses: BotResponses, still_thinking: Optional[bool] = None) -> None:
         """Yield all the responses from another bot to the request."""
         async for response in another_bot_responses:
-            await self.yield_response(response, indicate_typing_afterwards=indicate_typing_afterwards)
+            await self.yield_response(response, still_thinking=still_thinking)
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""

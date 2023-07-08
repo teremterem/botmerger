@@ -67,7 +67,7 @@ async def _iterate_over_responses(
     response = None
     while True:
         try:
-            if not response or response.indicate_typing_afterwards:
+            if not response or response.still_thinking:
                 _typing_context_manager = typing_context_manager
             else:
                 _typing_context_manager = _null_context
