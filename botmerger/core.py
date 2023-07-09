@@ -55,7 +55,7 @@ class BotMergerBase(BotMerger):
             self._default_msg_ctx = await self._create_message(
                 uuid=self.DEFAULT_MSG_CTX_UUID,
                 content=self.DEFAULT_MSG_CTX_CONTENT,
-                indicate_typing_afterwards=False,
+                still_thinking=False,
                 sender=await self.get_default_user(),
                 parent_context=None,
                 responds_to=None,
@@ -152,7 +152,7 @@ class BotMergerBase(BotMerger):
         if not channel_msg:
             channel_msg = await self._create_message(
                 content=f"{user_display_name}'s channel",
-                indicate_typing_afterwards=False,
+                still_thinking=False,
                 sender=await self.create_user(name=user_display_name),
                 parent_context=None,
                 responds_to=None,
@@ -174,7 +174,7 @@ class BotMergerBase(BotMerger):
     async def _create_message(
         self,
         content: MessageType,
-        indicate_typing_afterwards: Optional[bool],
+        still_thinking: Optional[bool],
         sender: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
@@ -183,9 +183,9 @@ class BotMergerBase(BotMerger):
     ) -> OriginalMessage:
         if isinstance(content, MergedMessage):
             # we are forwarding a message from another thread (or from a different place in the same thread)
-            if indicate_typing_afterwards is None:
+            if still_thinking is None:
                 # pass on the value from the original message
-                indicate_typing_afterwards = content.indicate_typing_afterwards
+                still_thinking = content.still_thinking
             if isinstance(content, ForwardedMessage):
                 # make sure we are not forwarding a forwarded message
                 # TODO do this recursively or just rely on the fact that all messages are created by this method
@@ -196,7 +196,7 @@ class BotMergerBase(BotMerger):
                 merger=self,
                 sender=sender,
                 original_message=content,
-                indicate_typing_afterwards=indicate_typing_afterwards,
+                still_thinking=still_thinking,
                 parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
@@ -205,8 +205,8 @@ class BotMergerBase(BotMerger):
 
         else:
             # we are creating a new message
-            if indicate_typing_afterwards is None:
-                raise ValueError("indicate_typing_afterwards must not be None when creating a new message")
+            if still_thinking is None:
+                raise ValueError("still_thinking must not be None when creating a new message")
 
             if dataclasses.is_dataclass(content):
                 # noinspection PyDataclass
@@ -220,7 +220,7 @@ class BotMergerBase(BotMerger):
                 merger=self,
                 sender=sender,
                 content=content,
-                indicate_typing_afterwards=indicate_typing_afterwards,
+                still_thinking=still_thinking,
                 parent_context=parent_context,
                 responds_to=responds_to,
                 goes_after=goes_after,
@@ -235,7 +235,7 @@ class BotMergerBase(BotMerger):
     async def create_next_message(
         self,
         content: MessageType,
-        indicate_typing_afterwards: Optional[bool],
+        still_thinking: Optional[bool],
         sender: Optional[MergedParticipant],
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage] = None,
@@ -254,7 +254,7 @@ class BotMergerBase(BotMerger):
 
         return await self._create_message(
             content=content,
-            indicate_typing_afterwards=indicate_typing_afterwards,
+            still_thinking=still_thinking,
             sender=sender,
             parent_context=parent_context,
             responds_to=responds_to,

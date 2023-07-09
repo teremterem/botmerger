@@ -52,7 +52,7 @@ class MergedBot(MergedParticipant):
         # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
         request = await self.merger.create_next_message(
             content=request,
-            indicate_typing_afterwards=False,
+            still_thinking=False,
             sender=override_sender,
             parent_context=override_parent_ctx,
             **kwargs,
@@ -98,7 +98,7 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     sender: MergedParticipant
-    indicate_typing_afterwards: bool
+    still_thinking: bool
     parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]

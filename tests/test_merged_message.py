@@ -14,7 +14,7 @@ def test_original_and_forwarded_message() -> None:
     original_message = OriginalMessage(
         merger=merger,
         sender=merged_user,
-        indicate_typing_afterwards=False,
+        still_thinking=False,
         content="some content",
     )
     original_message_dict = original_message.dict()
@@ -24,7 +24,7 @@ def test_original_and_forwarded_message() -> None:
     forwarded_message = ForwardedMessage(
         merger=merger,
         sender=merged_user,
-        indicate_typing_afterwards=False,
+        still_thinking=False,
         original_message=original_message,
     )
     assert forwarded_message.sender.uuid == merged_user.uuid
