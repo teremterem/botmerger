@@ -5,7 +5,7 @@ from asyncio import Queue
 from collections import deque
 from contextvars import ContextVar
 from contextvars import Token
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple
+from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple, Iterable
 from uuid import uuid4, UUID
 
 from pydantic import BaseModel, UUID4, Field
@@ -41,8 +41,19 @@ class BotMerger(ABC):
         """Get the default message context."""
 
     @abstractmethod
-    async def trigger_bot(self, bot: "MergedBot", request: "MergedMessage") -> "BotResponses":
-        """Find a bot by its alias and trigger it with a request."""
+    async def trigger_bot(
+        self,
+        bot: "MergedBot",
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional["MergedParticipant"] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> "BotResponses":
+        """
+        Find a bot by its alias and trigger this bot to respond to a message or messages. Returns an object that can
+        be used to retrieve the bot's response(s) in an asynchronous manner.
+        """
 
     @abstractmethod
     def create_bot(

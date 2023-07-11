@@ -1,13 +1,12 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Iterable
 
 from pydantic import Field
 
 from botmerger.base import (
     MergedObject,
     SingleTurnHandler,
-    SingleTurnContext,
     BotResponses,
     MessageContent,
     MessageType,
@@ -32,32 +31,24 @@ class MergedBot(MergedParticipant):
 
     async def trigger(
         self,
-        request: MessageType = None,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> BotResponses:
         """
-        Trigger this bot to respond to a message. Returns an object that can be used to retrieve the bot's
+        Trigger this bot to respond to a message or messages. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        # pylint: disable=protected-access
-        # noinspection PyProtectedMember
-        current_context = SingleTurnContext._current_context.get()
-        if current_context:
-            if not override_sender:
-                override_sender = current_context.this_bot
-            if not override_parent_ctx:
-                override_parent_ctx = current_context.request
-        # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
-        request = await self.merger.create_next_message(
-            content=request,
-            still_thinking=False,
-            sender=override_sender,
-            parent_context=override_parent_ctx,
+        return await self.merger.trigger_bot(
+            bot=self,
+            request=request,
+            requests=requests,
+            override_sender=override_sender,
+            override_parent_ctx=override_parent_ctx,
             **kwargs,
         )
-        return await self.merger.trigger_bot(self, request)
 
     async def get_final_response(
         self,

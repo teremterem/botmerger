@@ -4,7 +4,7 @@ import asyncio
 import dataclasses
 import logging
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, Dict
+from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable
 from uuid import UUID
 
 from pydantic import UUID4, BaseModel
@@ -63,7 +63,32 @@ class BotMergerBase(BotMerger):
             )
         return self._default_msg_ctx
 
-    async def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
+    async def trigger_bot(
+        self,
+        bot: MergedBot,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> BotResponses:
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        current_context = SingleTurnContext._current_context.get()
+        if current_context:
+            if not override_sender:
+                override_sender = current_context.this_bot
+            if not override_parent_ctx:
+                override_parent_ctx = current_context.request
+        # if `request` is "plain" content, convert it to OriginalMessage, otherwise wrap it in ForwardedMessage
+        request = await self.create_next_message(
+            content=request,
+            still_thinking=False,
+            sender=override_sender,
+            parent_context=override_parent_ctx,
+            **kwargs,
+        )
+
         handler = self._single_turn_handlers[bot.uuid]
         bot_responses = BotResponses(request)
         context = SingleTurnContext(
