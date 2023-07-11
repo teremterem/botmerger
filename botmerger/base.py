@@ -194,8 +194,7 @@ class BotResponses:
 
     _END_OF_RESPONSES = object()
 
-    def __init__(self, request: "MergedMessage") -> None:
-        self.request = request
+    def __init__(self) -> None:
         self.responses_so_far: List["MergedMessage"] = []
         self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception]]] = Queue()
         self._error: Optional[ErrorWrapper] = None
@@ -249,18 +248,23 @@ class SingleTurnContext:
     _previous_ctx_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_ctx_token_stack")
     _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
 
+    requests: Tuple["MergedMessage"]
+
     def __init__(
         self,
         merger: BotMerger,
         this_bot: "MergedBot",
-        request: "MergedMessage",
         bot_responses: BotResponses,
     ) -> None:
         self.merger = merger
         self.this_bot = this_bot
-        self.request = request
 
         self._bot_responses = bot_responses
+
+    @property
+    def concluding_request(self) -> "MergedMessage":
+        """The last request that was sent to the bot."""
+        return self.requests[-1]
 
     async def yield_response(
         self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
@@ -270,8 +274,8 @@ class SingleTurnContext:
             content=response,
             still_thinking=still_thinking,
             sender=self.this_bot,
-            parent_context=self.request.parent_context,
-            responds_to=self.request,
+            parent_context=self.concluding_request.parent_context,
+            responds_to=self.concluding_request,
             **kwargs,
         )
         self._bot_responses._response_queue.put_nowait(response)
