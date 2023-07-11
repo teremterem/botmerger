@@ -110,6 +110,11 @@ async def test_trigger_bot() -> None:
     assert call_mock.call_count == 4
     assert len(responses.responses_so_far) == 3
 
+    # check that calling `get_all_responses` again does not cause any exceptions and does not change any state
+    assert len(await responses.get_all_responses()) == 3
+    assert call_mock.call_count == 4
+    assert len(responses.responses_so_far) == 3
+
 
 @pytest.mark.asyncio
 async def test_trigger_bot_exception() -> None:

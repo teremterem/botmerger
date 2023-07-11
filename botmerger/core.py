@@ -4,7 +4,7 @@ import asyncio
 import dataclasses
 import logging
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, Dict
+from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable
 from uuid import UUID
 
 from pydantic import UUID4, BaseModel
@@ -63,22 +63,91 @@ class BotMergerBase(BotMerger):
             )
         return self._default_msg_ctx
 
-    async def trigger_bot(self, bot: MergedBot, request: MergedMessage) -> BotResponses:
+    async def trigger_bot(
+        self,
+        bot: MergedBot,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        **kwargs,  # TODO what to do with kwargs when there are multiple requests ?
+    ) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
-        bot_responses = BotResponses(request)
+
+        if request is not None and requests is not None:
+            raise ValueError("Cannot specify both `request` and `requests`. Please specify only one of them.")
+
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        current_context = SingleTurnContext._current_context.get()
+        if current_context:
+            if not override_sender:
+                override_sender = current_context.this_bot
+            if not override_parent_ctx:
+                override_parent_ctx = current_context.concluding_request
+
+        bot_responses = BotResponses()
         context = SingleTurnContext(
             merger=self,
             this_bot=bot,
-            request=request,
             bot_responses=bot_responses,
         )
-        asyncio.create_task(self._run_single_turn_handler(handler, context))
+
+        asyncio.create_task(
+            self._run_single_turn_handler(
+                handler=handler,
+                context=context,
+                request=request,
+                requests=requests,
+                override_sender=override_sender,
+                override_parent_ctx=override_parent_ctx,
+                **kwargs,
+            )
+        )
+
         return bot_responses
 
     # noinspection PyProtectedMember,PyMethodMayBeStatic
-    async def _run_single_turn_handler(self, handler: SingleTurnHandler, context: SingleTurnContext) -> None:
+    async def _run_single_turn_handler(
+        self,
+        handler: SingleTurnHandler,
+        context: SingleTurnContext,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> None:
         # pylint: disable=broad-except,protected-access
         try:
+            prepared_requests = []
+
+            async def _prepare_merged_message(_request: MessageType) -> None:
+                prepared_requests.append(
+                    await self.create_next_message(
+                        content=_request,
+                        still_thinking=False,
+                        sender=override_sender,
+                        parent_context=override_parent_ctx,
+                        **kwargs,
+                    )
+                )
+
+            async def _prepare_request(_request: Union[MessageType, "BotResponses"]) -> None:
+                if isinstance(request, BotResponses):
+                    async for another_bot_response in _request:
+                        await _prepare_merged_message(another_bot_response)
+                else:
+                    await _prepare_merged_message(_request)
+
+            if requests:
+                for req in requests:
+                    await _prepare_request(req)
+            else:
+                await _prepare_request(request)
+
+            context.requests = tuple(prepared_requests)
+
             with context:
                 await handler(context)
         except Exception as exc:
