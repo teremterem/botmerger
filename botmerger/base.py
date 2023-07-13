@@ -2,7 +2,6 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
-from collections import deque
 from contextvars import ContextVar
 from contextvars import Token
 from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple, Iterable
@@ -245,10 +244,10 @@ class SingleTurnContext:
     single turn handler function to yield a response to the request.
     """
 
-    _previous_ctx_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_ctx_token_stack")
-    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
-
     requests: Tuple["MergedMessage"]
+
+    _previous_ctx_token: ContextVar[Token] = ContextVar("_previous_ctx_token")
+    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
 
     def __init__(
         self,
@@ -296,17 +295,12 @@ class SingleTurnContext:
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""
-        try:
-            previous_ctx_token_stack = self._previous_ctx_token_stack.get()
-        except LookupError:
-            previous_ctx_token_stack = deque()
-            self._previous_ctx_token_stack.set(previous_ctx_token_stack)
-
+        # TODO emphasize that nesting contexts is not supported unless asyncio.create_task is used for each nesting
         previous_ctx_token = self._current_context.set(self)  # <- this is the context switch
-        previous_ctx_token_stack.append(previous_ctx_token)
+        self._previous_ctx_token.set(previous_ctx_token)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Restore the context that was current before this one."""
-        previous_ctx_token = self._previous_ctx_token_stack.get().pop()
+        previous_ctx_token = self._previous_ctx_token.get()
         self._current_context.reset(previous_ctx_token)
