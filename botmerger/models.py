@@ -1,6 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from typing import Any, Optional, Union, Iterable
+from typing import Any, Optional, Union, Iterable, AsyncGenerator
 
 from pydantic import Field
 
@@ -93,6 +93,24 @@ class MergedMessage(BaseMessage, MergedObject):
     parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
+
+    async def get_conversation_history(self) -> AsyncGenerator["MergedMessage", None]:
+        """Get the conversation history for this message (excluding this message)."""
+        # TODO move this to functionality to BotMerger ?
+        history = []
+        msg = self.goes_after
+        while msg:
+            history.append(msg)
+            msg = msg.goes_after
+        history.reverse()
+        for msg in history:
+            yield msg
+
+    async def get_full_conversation(self) -> AsyncGenerator["MergedMessage", None]:
+        """Get the full conversation history for this message (including this message)."""
+        async for msg in self.get_conversation_history():
+            yield msg
+        yield self
 
 
 class OriginalMessage(MergedMessage):
