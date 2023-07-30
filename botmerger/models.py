@@ -108,6 +108,7 @@ class MergedMessage(BaseMessage, MergedObject):
     async def get_full_conversation(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
         if max_length is not None:
+            # let's account for the current message as well
             max_length -= 1
         result = await self.get_conversation_history(max_length=max_length)
         result.append(self)

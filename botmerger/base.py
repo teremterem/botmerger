@@ -276,9 +276,9 @@ class SingleTurnContext:
         """The last request that was sent to the bot."""
         return self.requests[-1]
 
-    async def get_full_conversation(self) -> List["MergedMessage"]:
+    async def get_full_conversation(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
-        return await self.concluding_request.get_full_conversation()
+        return await self.concluding_request.get_full_conversation(max_length=max_length)
 
     async def yield_response(
         self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
