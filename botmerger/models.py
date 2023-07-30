@@ -97,6 +97,7 @@ class MergedMessage(BaseMessage, MergedObject):
     async def get_conversation_history(self) -> AsyncGenerator["MergedMessage", None]:
         """Get the conversation history for this message (excluding this message)."""
         # TODO move this to functionality to BotMerger ?
+        # TODO return a list instead of a generator ? accept max_history_length ?
         history = []
         msg = self.goes_after
         while msg:
