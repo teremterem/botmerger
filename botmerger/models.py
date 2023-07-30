@@ -93,25 +93,34 @@ class MergedMessage(BaseMessage, MergedObject):
     parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
+    invisible_to_bots: bool = False
 
-    async def get_conversation_history(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
+    async def get_conversation_history(
+        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+    ) -> List["MergedMessage"]:
         """Get the conversation history for this message (excluding this message)."""
         # TODO move this to functionality to BotMerger ?
         history = []
         msg = self.goes_after
         while msg and (max_length is None or len(history) < max_length):
-            history.append(msg)
+            if include_invisible_to_bots or not msg.invisible_to_bots:
+                history.append(msg)
             msg = msg.goes_after
         history.reverse()
         return history
 
-    async def get_full_conversation(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
+    async def get_full_conversation(
+        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+    ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
         if max_length is not None:
             # let's account for the current message as well
             max_length -= 1
-        result = await self.get_conversation_history(max_length=max_length)
-        result.append(self)
+        result = await self.get_conversation_history(
+            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+        )
+        if include_invisible_to_bots or not self.invisible_to_bots:
+            result.append(self)
         return result
 
 
