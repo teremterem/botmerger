@@ -4,7 +4,19 @@ from abc import ABC, abstractmethod
 from asyncio import Queue
 from contextvars import ContextVar
 from contextvars import Token
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple, Iterable
+from typing import (
+    Any,
+    TYPE_CHECKING,
+    Optional,
+    Dict,
+    Callable,
+    Awaitable,
+    Union,
+    List,
+    Tuple,
+    Iterable,
+    AsyncGenerator,
+)
 from uuid import uuid4, UUID
 
 from pydantic import BaseModel, UUID4, Field
@@ -264,6 +276,11 @@ class SingleTurnContext:
     def concluding_request(self) -> "MergedMessage":
         """The last request that was sent to the bot."""
         return self.requests[-1]
+
+    async def get_full_conversation(self) -> AsyncGenerator["MergedMessage", None]:
+        """Get the full conversation history for this message (including this message)."""
+        async for msg in self.concluding_request.get_full_conversation():
+            yield msg
 
     async def yield_response(
         self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
