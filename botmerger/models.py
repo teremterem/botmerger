@@ -142,6 +142,7 @@ class ForwardedMessage(MergedMessage):
     """
 
     original_message: OriginalMessage
+    # TODO does `invisible_to_bots` need to be inherited from the original message as well ?
 
     @property
     def original_sender(self) -> MergedParticipant:
