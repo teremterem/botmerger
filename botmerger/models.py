@@ -1,6 +1,6 @@
 # pylint: disable=no-name-in-module
 """Models for the BotMerger library."""
-from typing import Any, Optional, Union, Iterable, AsyncGenerator
+from typing import Any, Optional, Union, Iterable, List
 
 from pydantic import Field
 
@@ -94,24 +94,24 @@ class MergedMessage(BaseMessage, MergedObject):
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
 
-    async def get_conversation_history(self) -> AsyncGenerator["MergedMessage", None]:
+    async def get_conversation_history(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
         """Get the conversation history for this message (excluding this message)."""
         # TODO move this to functionality to BotMerger ?
-        # TODO return a list instead of a generator ? accept max_history_length ?
         history = []
         msg = self.goes_after
-        while msg:
+        while msg and (max_length is None or len(history) < max_length):
             history.append(msg)
             msg = msg.goes_after
         history.reverse()
-        for msg in history:
-            yield msg
+        return history
 
-    async def get_full_conversation(self) -> AsyncGenerator["MergedMessage", None]:
+    async def get_full_conversation(self, max_length: Optional[int] = None) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
-        async for msg in self.get_conversation_history():
-            yield msg
-        yield self
+        if max_length is not None:
+            max_length -= 1
+        result = await self.get_conversation_history(max_length=max_length)
+        result.append(self)
+        return result
 
 
 class OriginalMessage(MergedMessage):

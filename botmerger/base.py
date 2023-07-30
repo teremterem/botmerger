@@ -15,7 +15,6 @@ from typing import (
     List,
     Tuple,
     Iterable,
-    AsyncGenerator,
 )
 from uuid import uuid4, UUID
 
@@ -277,10 +276,9 @@ class SingleTurnContext:
         """The last request that was sent to the bot."""
         return self.requests[-1]
 
-    async def get_full_conversation(self) -> AsyncGenerator["MergedMessage", None]:
+    async def get_full_conversation(self) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
-        async for msg in self.concluding_request.get_full_conversation():
-            yield msg
+        return await self.concluding_request.get_full_conversation()
 
     async def yield_response(
         self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
