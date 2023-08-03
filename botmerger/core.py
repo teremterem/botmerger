@@ -82,7 +82,6 @@ class BotMergerBase(BotMerger):
         # pylint: disable=protected-access
         # noinspection PyProtectedMember
         current_context = SingleTurnContext._current_context.get()
-        # TODO additionally introduce `sender` and `parent_ctx` because `override_xxx` ones by themselves are confusing
         if current_context:
             if not override_sender:
                 override_sender = current_context.this_bot
