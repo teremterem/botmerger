@@ -131,7 +131,7 @@ class BotMergerBase(BotMerger):
                         content=_request,
                         still_thinking=False,
                         sender=override_sender,
-                        # TODO receiver
+                        receiver=context.this_bot,
                         parent_context=override_parent_ctx,
                         **kwargs,
                     )
@@ -307,7 +307,12 @@ class BotMergerBase(BotMerger):
 
         await self._register_merged_object(message)
         if message.parent_context:
-            await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
+            await self.set_mutable_state(
+                self._generate_latest_message_in_chat_key(
+                    message.parent_context.uuid, message.sender.uuid, message.receiver.uuid
+                ),
+                message.uuid,
+            )
         return message
 
     async def create_next_message(
@@ -325,7 +330,9 @@ class BotMergerBase(BotMerger):
         if not parent_context:
             parent_context = await self.get_default_msg_ctx()
 
-        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(parent_context.uuid))
+        latest_message_uuid = await self.get_mutable_state(
+            self._generate_latest_message_in_chat_key(parent_context.uuid, sender.uuid, receiver.uuid)
+        )
         if latest_message_uuid:
             latest_message = await self.find_message(latest_message_uuid)
         else:
@@ -386,15 +393,14 @@ class BotMergerBase(BotMerger):
         return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
-    def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
+    def _generate_latest_message_in_chat_key(
+        self, context_uuid: UUID4, *participant_uuids: UUID4
+    ) -> Tuple[str, UUID4, ...]:
         """Generate a key for the latest message in a given context."""
-        # TODO should the thread be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` ? anything else ?
-        # TODO should it not matter who is the sender and who is the receiver to identify the thread
-        #  (sort the uuids alphabetically) ?
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
         #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
         #  some other solution ? Maybe some random identifier stored in a ContextVar ?
-        return "latest_message_in_context", context_uuid
+        return "latest_message_in_chat", context_uuid, *sorted(participant_uuids)
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: Type, key: Any) -> None:

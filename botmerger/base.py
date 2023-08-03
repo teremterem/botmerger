@@ -294,7 +294,7 @@ class SingleTurnContext:
             content=response,
             still_thinking=still_thinking,
             sender=self.this_bot,
-            # TODO receiver
+            receiver=self.concluding_request.sender,
             parent_context=self.concluding_request.parent_context,
             responds_to=self.concluding_request,
             **kwargs,
