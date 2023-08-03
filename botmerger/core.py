@@ -52,11 +52,13 @@ class BotMergerBase(BotMerger):
 
     async def get_default_msg_ctx(self) -> MergedMessage:
         if not self._default_msg_ctx:
+            default_user = await self.get_default_user()
             self._default_msg_ctx = await self._create_message(
                 uuid=self.DEFAULT_MSG_CTX_UUID,
                 content=self.DEFAULT_MSG_CTX_CONTENT,
                 still_thinking=False,
-                sender=await self.get_default_user(),
+                sender=default_user,
+                receiver=default_user,
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
@@ -80,6 +82,7 @@ class BotMergerBase(BotMerger):
         # pylint: disable=protected-access
         # noinspection PyProtectedMember
         current_context = SingleTurnContext._current_context.get()
+        # TODO additionally introduce `sender` and `parent_ctx` because `override_xxx` ones by themselves are confusing
         if current_context:
             if not override_sender:
                 override_sender = current_context.this_bot
@@ -128,6 +131,7 @@ class BotMergerBase(BotMerger):
                         content=_request,
                         still_thinking=False,
                         sender=override_sender,
+                        # TODO receiver
                         parent_context=override_parent_ctx,
                         **kwargs,
                     )
@@ -219,10 +223,12 @@ class BotMergerBase(BotMerger):
             channel_msg = None
 
         if not channel_msg:
+            user = await self.create_user(name=user_display_name)
             channel_msg = await self._create_message(
                 content=f"{user_display_name}'s channel",
                 still_thinking=False,
-                sender=await self.create_user(name=user_display_name),
+                sender=user,
+                receiver=user,
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
@@ -245,6 +251,7 @@ class BotMergerBase(BotMerger):
         content: MessageType,
         still_thinking: Optional[bool],
         sender: MergedParticipant,
+        receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
         goes_after: Optional[MergedMessage],
@@ -264,6 +271,7 @@ class BotMergerBase(BotMerger):
             message = ForwardedMessage(
                 merger=self,
                 sender=sender,
+                receiver=receiver,
                 original_message=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
@@ -288,6 +296,7 @@ class BotMergerBase(BotMerger):
             message = OriginalMessage(
                 merger=self,
                 sender=sender,
+                receiver=receiver,
                 content=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
@@ -306,6 +315,7 @@ class BotMergerBase(BotMerger):
         content: MessageType,
         still_thinking: Optional[bool],
         sender: Optional[MergedParticipant],
+        receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage] = None,
         **kwargs,
@@ -325,6 +335,7 @@ class BotMergerBase(BotMerger):
             content=content,
             still_thinking=still_thinking,
             sender=sender,
+            receiver=receiver,
             parent_context=parent_context,
             responds_to=responds_to,
             goes_after=latest_message,
@@ -378,6 +389,8 @@ class BotMergerBase(BotMerger):
     def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
         """Generate a key for the latest message in a given context."""
         # TODO should the thread be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` ? anything else ?
+        # TODO should it not matter who is the sender and who is the receiver to identify the thread
+        #  (sort the uuids alphabetically) ?
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
         #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
         #  some other solution ? Maybe some random identifier stored in a ContextVar ?

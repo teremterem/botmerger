@@ -89,6 +89,7 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     sender: MergedParticipant
+    receiver: MergedParticipant
     still_thinking: bool
     parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
@@ -134,6 +135,11 @@ class OriginalMessage(MergedMessage):
         """For an original message, the original sender is the same as the sender."""
         return self.sender
 
+    @property
+    def original_receiver(self) -> MergedParticipant:
+        """For an original message, the original receiver is the same as the receiver."""
+        return self.receiver
+
 
 class ForwardedMessage(MergedMessage):
     """
@@ -148,6 +154,11 @@ class ForwardedMessage(MergedMessage):
     def original_sender(self) -> MergedParticipant:
         """The original sender of the forwarded message."""
         return self.original_message.sender
+
+    @property
+    def original_receiver(self) -> MergedParticipant:
+        """The original receiver of the forwarded message."""
+        return self.original_message.receiver
 
     @property
     def content(self) -> MessageContent:
