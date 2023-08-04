@@ -52,14 +52,16 @@ class MergedBot(MergedParticipant):
 
     async def get_final_response(
         self,
-        request: MessageType = None,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
         **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
         responses = await self.trigger(
-            request,
+            request=request,
+            requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
             **kwargs,
