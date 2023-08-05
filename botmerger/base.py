@@ -2,6 +2,7 @@
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
 from asyncio import Queue
+from collections import abc
 from contextvars import ContextVar
 from contextvars import Token
 from typing import (
@@ -316,8 +317,12 @@ class SingleTurnContext:
         still_thinking: Optional[bool] = None,
     ) -> None:
         """Yield responses to the request from an iterable."""
-        async for response in iterable:
-            await self.yield_response(response, still_thinking=still_thinking)
+        if isinstance(iterable, abc.AsyncIterable):
+            async for response in iterable:
+                await self.yield_response(response, still_thinking=still_thinking)
+        else:
+            for response in iterable:
+                await self.yield_response(response, still_thinking=still_thinking)
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""
