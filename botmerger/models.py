@@ -29,7 +29,7 @@ class MergedBot(MergedParticipant):
     alias: str
     description: Optional[str] = None
 
-    async def trigger(
+    def trigger(
         self,
         request: Union[MessageType, "BotResponses"] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
@@ -41,7 +41,7 @@ class MergedBot(MergedParticipant):
         Trigger this bot to respond to a message or messages. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        return await self.merger.trigger_bot(
+        return self.merger.trigger_bot(
             bot=self,
             request=request,
             requests=requests,
@@ -59,7 +59,7 @@ class MergedBot(MergedParticipant):
         **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
-        responses = await self.trigger(
+        responses = self.trigger(
             request=request,
             requests=requests,
             override_sender=override_sender,
@@ -77,7 +77,7 @@ class MergedBot(MergedParticipant):
         **kwargs,
     ) -> List["MergedMessage"]:
         """Get all the responses from the bot for a given request."""
-        responses = await self.trigger(
+        responses = self.trigger(
             request=request,
             requests=requests,
             override_sender=override_sender,

@@ -53,7 +53,7 @@ class BotMerger(ABC):
         """Get the default message context."""
 
     @abstractmethod
-    async def trigger_bot(
+    def trigger_bot(
         self,
         bot: "MergedBot",
         request: Union[MessageType, "BotResponses"] = None,

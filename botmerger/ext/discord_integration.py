@@ -30,7 +30,7 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
                 user_display_name=discord_message.author.name,
             )
 
-            bot_responses = await bot.trigger(
+            bot_responses = bot.trigger(
                 discord_message.content,
                 override_sender=channel_msg_ctx.sender,
                 override_parent_ctx=channel_msg_ctx,

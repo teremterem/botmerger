@@ -65,7 +65,7 @@ class BotMergerBase(BotMerger):
             )
         return self._default_msg_ctx
 
-    async def trigger_bot(
+    def trigger_bot(
         self,
         bot: MergedBot,
         request: Union[MessageType, "BotResponses"] = None,

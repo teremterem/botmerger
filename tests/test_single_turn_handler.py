@@ -95,7 +95,7 @@ async def test_trigger_bot() -> None:
         await context.yield_final_response({"response": "3"})
         call_mock()
 
-    responses = await _dummy_bot_func.bot.trigger("test request")
+    responses = _dummy_bot_func.bot.trigger("test request")
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
@@ -132,7 +132,7 @@ async def test_trigger_bot_exception() -> None:
         call_mock()
         raise ValueError("test")
 
-    responses = await _dummy_bot_func.bot.trigger("test request")
+    responses = _dummy_bot_func.bot.trigger("test request")
 
     call_mock.assert_not_called()
     assert not responses.responses_so_far
