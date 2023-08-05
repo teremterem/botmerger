@@ -261,11 +261,6 @@ class BotMergerBase(BotMerger):
             if still_thinking is None:
                 # pass on the value from the original message
                 still_thinking = content.still_thinking
-            if isinstance(content, ForwardedMessage):
-                # make sure we are not forwarding a forwarded message
-                # TODO do this recursively or just rely on the fact that all messages are created by this method
-                #  and there is never a ForwardedMessage instance in original_message field ?
-                content = content.original_message
 
             message = ForwardedMessage(
                 merger=self,

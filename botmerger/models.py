@@ -102,7 +102,8 @@ class MergedMessage(BaseMessage, MergedObject):
         self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
     ) -> List["MergedMessage"]:
         """Get the conversation history for this message (excluding this message)."""
-        # TODO move this to functionality to BotMerger ?
+        # TODO does it need to by async ?
+        # TODO move this functionality to BotMerger ?
         history = []
         msg = self.goes_after
         while msg and (max_length is None or len(history) < max_length):
@@ -116,6 +117,7 @@ class MergedMessage(BaseMessage, MergedObject):
         self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
     ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
+        # TODO does it need to by async ?
         if max_length is not None:
             # let's account for the current message as well
             max_length -= 1
@@ -126,6 +128,14 @@ class MergedMessage(BaseMessage, MergedObject):
             result.append(self)
         return result
 
+    async def get_ultimate_original_message(self) -> "OriginalMessage":
+        """Get the ultimate original message for this message."""
+        # TODO does it need to by async ?
+        msg = self
+        while isinstance(msg, ForwardedMessage):
+            msg = msg.original_message
+        return msg
+
 
 class OriginalMessage(MergedMessage):
     """This subclass represents an original message. It implements `content` as a Pydantic field."""
@@ -133,14 +143,9 @@ class OriginalMessage(MergedMessage):
     content: Union[str, Any]
 
     @property
-    def original_sender(self) -> MergedParticipant:
-        """For an original message, the original sender is the same as the sender."""
-        return self.sender
-
-    @property
-    def original_receiver(self) -> MergedParticipant:
-        """For an original message, the original receiver is the same as the receiver."""
-        return self.receiver
+    def original_message(self) -> "MergedMessage":
+        """The original message is itself."""
+        return self
 
 
 class ForwardedMessage(MergedMessage):
@@ -149,18 +154,9 @@ class ForwardedMessage(MergedMessage):
     original message.
     """
 
-    original_message: OriginalMessage
+    original_message: MergedMessage
+
     # TODO does `invisible_to_bots` need to be inherited from the original message as well ?
-
-    @property
-    def original_sender(self) -> MergedParticipant:
-        """The original sender of the forwarded message."""
-        return self.original_message.sender
-
-    @property
-    def original_receiver(self) -> MergedParticipant:
-        """The original receiver of the forwarded message."""
-        return self.original_message.receiver
 
     @property
     def content(self) -> MessageContent:

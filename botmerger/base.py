@@ -15,6 +15,7 @@ from typing import (
     List,
     Tuple,
     Iterable,
+    AsyncIterable,
 )
 from uuid import uuid4, UUID
 
@@ -192,9 +193,8 @@ class BaseMessage:
     subclasses one way or another (either as a Pydantic field or as a property).
     """
 
-    original_sender: "MergedParticipant"
-    original_receiver: "MergedParticipant"
     content: Union[str, Any]
+    original_message: "MergedMessage"
 
 
 class BotResponses:
@@ -310,9 +310,13 @@ class SingleTurnContext:
         """Yield a final response to the request."""
         return await self.yield_response(response, still_thinking=False, **kwargs)
 
-    async def yield_from(self, another_bot_responses: BotResponses, still_thinking: Optional[bool] = None) -> None:
-        """Yield all the responses from another bot to the request."""
-        async for response in another_bot_responses:
+    async def yield_from(
+        self,
+        iterable: Iterable[MessageType] | AsyncIterable[MessageType],
+        still_thinking: Optional[bool] = None,
+    ) -> None:
+        """Yield responses to the request from an iterable."""
+        async for response in iterable:
             await self.yield_response(response, still_thinking=still_thinking)
 
     def __enter__(self) -> "SingleTurnContext":
