@@ -68,6 +68,24 @@ class MergedBot(MergedParticipant):
         )
         return await responses.get_final_response()
 
+    async def get_all_responses(
+        self,
+        request: Union[MessageType, "BotResponses"] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        **kwargs,
+    ) -> List["MergedMessage"]:
+        """Get all the responses from the bot for a given request."""
+        responses = await self.trigger(
+            request=request,
+            requests=requests,
+            override_sender=override_sender,
+            override_parent_ctx=override_parent_ctx,
+            **kwargs,
+        )
+        return await responses.get_all_responses()
+
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
         A decorator that registers a local single-turn handler function for this MergedBot. Single-turn means that
