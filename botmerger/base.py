@@ -1,7 +1,7 @@
 # pylint: disable=no-name-in-module,too-many-arguments
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from asyncio import Queue
+from asyncio import Queue, Lock
 from collections import abc
 from contextvars import ContextVar
 from contextvars import Token
@@ -201,23 +201,6 @@ class BaseMessage:
     original_message: "MergedMessage"
 
 
-class _BotResponseIterator:
-    def __init__(self, bot_responses: "BotResponses") -> None:
-        self._bot_responses = bot_responses
-        self._index = 0
-
-    async def __anext__(self) -> "MergedMessage":
-        try:
-            response = self._bot_responses.responses_so_far[self._index]
-        except IndexError:
-            # this will also raise StopAsyncIteration if there are no more responses
-            # noinspection PyProtectedMember
-            response = await self._bot_responses._wait_for_next_response()
-
-        self._index += 1
-        return response
-
-
 class BotResponses:
     """
     A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
@@ -229,31 +212,13 @@ class BotResponses:
 
     def __init__(self) -> None:
         self.responses_so_far: List["MergedMessage"] = []
-        self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception]]] = Queue()
+        self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception, "BotResponses"]]] = Queue()
         self._error: Optional[ErrorWrapper] = None
+        self._cached_bot_response_iterator: Optional[BotResponses._Iterator] = None
+        self._lock = Lock()
 
-    def __aiter__(self) -> _BotResponseIterator:
-        return _BotResponseIterator(self)
-
-    async def _wait_for_next_response(self) -> "MergedMessage":
-        if self._error:
-            raise self._error
-
-        if self._response_queue is None:
-            raise StopAsyncIteration
-
-        response = await self._response_queue.get()
-
-        if isinstance(response, Exception):
-            self._error = ErrorWrapper(error=response)
-            raise self._error
-
-        if response is self._END_OF_RESPONSES:
-            self._response_queue = None
-            raise StopAsyncIteration
-
-        self.responses_so_far.append(response)
-        return response
+    def __aiter__(self) -> "BotResponses._Iterator":
+        return BotResponses._Iterator(self)
 
     async def get_all_responses(self) -> List["MergedMessage"]:
         """Wait until all the responses are received and return them as a list."""
@@ -266,6 +231,56 @@ class BotResponses:
         """Wait until all the responses are received and return the last one or None if there are no responses."""
         responses = await self.get_all_responses()
         return responses[-1] if responses else None
+
+    async def _wait_for_next_response(self) -> "MergedMessage":
+        async with self._lock:
+            if self._cached_bot_response_iterator is not None:
+                # we are yielding responses from a cached BotResponses instance
+                response = await anext(self._cached_bot_response_iterator)
+            else:
+                if self._error:
+                    raise self._error
+
+                if self._response_queue is None:
+                    raise StopAsyncIteration
+
+                response = await self._response_queue.get()
+
+                if isinstance(response, BotResponses):
+                    # we are going to yield responses from a cached BotResponses instance
+                    self._cached_bot_response_iterator = aiter(response)
+                    response = await anext(self._cached_bot_response_iterator)
+
+                else:
+                    if isinstance(response, Exception):
+                        self._error = ErrorWrapper(error=response)
+                        raise self._error
+
+                    if response is self._END_OF_RESPONSES:
+                        self._response_queue = None
+                        raise StopAsyncIteration
+
+            self.responses_so_far.append(response)
+            return response
+
+    class _Iterator:
+        def __init__(self, bot_responses: "BotResponses") -> None:
+            self._bot_responses = bot_responses
+            self._index = 0
+
+        async def __anext__(self) -> "MergedMessage":
+            try:
+                response = self._bot_responses.responses_so_far[self._index]
+            except IndexError:
+                async with self._bot_responses._lock:
+                    try:
+                        response = self._bot_responses.responses_so_far[self._index]
+                    except IndexError:
+                        # this will also raise StopAsyncIteration if there are no more responses
+                        response = await self._bot_responses._wait_for_next_response()
+
+            self._index += 1
+            return response
 
 
 # noinspection PyProtectedMember

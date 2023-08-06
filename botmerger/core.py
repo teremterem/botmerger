@@ -162,16 +162,33 @@ class BotMergerBase(BotMerger):
 
             context.requests = tuple(prepared_requests)
 
-            with context:
-                await handler(context)
+            cached_responses: Optional[BotResponses] = None
+            if not context.this_bot.no_cache:
+                caching_key = tuple(caching_key)
+                if not rewrite_cache:
+                    # TODO is asyncio.Lock needed somewhere around here ?
+                    cached_responses = await self.get_mutable_state(caching_key)
+
+            if cached_responses is None:
+                if not context.this_bot.no_cache:
+                    # TODO come up with a way to put only json serializable stuff into the "mutable state"
+                    # TODO introduce some sort of CachedBotResponses class, capable of creating new "forwarded"
+                    #  messages that become part of the new chat history every time those response messages are
+                    #  fetched from the cache (but it shouldn't forward the "forwarded" messages, it should
+                    #  forward the original messages instead)
+                    await self.set_mutable_state(caching_key, context._bot_responses)
+
+                with context:
+                    await handler(context)
+            else:
+                # we have a cache hit
+                context._bot_responses._response_queue.put_nowait(cached_responses)
+
         except Exception as exc:
             logger.debug(exc, exc_info=exc)
             context._bot_responses._response_queue.put_nowait(exc)
         finally:
             context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
-            # TODO TODO TODO cache
-
-            await self.set_mutable_state(tuple(caching_key), tuple(await context._bot_responses.get_all_responses()))
 
     def create_bot(
         self,
