@@ -64,7 +64,9 @@ def attach_bot_to_discord(bot: MergedBot, discord_client: discord.Client) -> Non
 async def _iterate_over_responses(
     bot_responses: BotResponses, typing_context_manager: Any
 ) -> AsyncGenerator[MergedMessage, None]:
+    resp_iterator = aiter(bot_responses)
     response = None
+
     while True:
         try:
             if not response or response.still_thinking:
@@ -73,7 +75,7 @@ async def _iterate_over_responses(
                 _typing_context_manager = _null_context
 
             async with _typing_context_manager:
-                response = await anext(bot_responses)
+                response = await anext(resp_iterator)
 
         except StopAsyncIteration:
             return

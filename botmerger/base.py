@@ -201,6 +201,23 @@ class BaseMessage:
     original_message: "MergedMessage"
 
 
+class _BotResponseIterator:
+    def __init__(self, bot_responses: "BotResponses") -> None:
+        self._bot_responses = bot_responses
+        self._index = 0
+
+    async def __anext__(self) -> "MergedMessage":
+        try:
+            response = self._bot_responses.responses_so_far[self._index]
+        except IndexError:
+            # this will also raise StopAsyncIteration if there are no more responses
+            # noinspection PyProtectedMember
+            response = await self._bot_responses._wait_for_next_response()
+
+        self._index += 1
+        return response
+
+
 class BotResponses:
     """
     A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
@@ -215,11 +232,10 @@ class BotResponses:
         self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception]]] = Queue()
         self._error: Optional[ErrorWrapper] = None
 
-    def __aiter__(self) -> "BotResponses":
-        return self
+    def __aiter__(self) -> _BotResponseIterator:
+        return _BotResponseIterator(self)
 
-    # noinspection PyTypeChecker
-    async def __anext__(self) -> "MergedMessage":
+    async def _wait_for_next_response(self) -> "MergedMessage":
         if self._error:
             raise self._error
 

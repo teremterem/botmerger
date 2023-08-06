@@ -2,6 +2,7 @@
 """Implementations of BotMerger class."""
 import asyncio
 import dataclasses
+import json
 import logging
 from abc import abstractmethod
 from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable
@@ -123,10 +124,10 @@ class BotMergerBase(BotMerger):
         rewrite_cache: bool,
         **kwargs,
     ) -> None:
+        caching_key = []
         # pylint: disable=broad-except,protected-access
         try:
             prepared_requests = []
-            uuids_for_cache = []  # TODO TODO TODO
 
             async def _prepare_merged_message(_request: MessageType) -> None:
                 request = await self.create_next_message(
@@ -138,7 +139,13 @@ class BotMergerBase(BotMerger):
                     **kwargs,
                 )
                 prepared_requests.append(request)
-                uuids_for_cache.append(request.original_message.uuid)
+                if not context.this_bot.no_cache:
+                    caching_key.append(
+                        # uuid is taken from the original message, but the extra fields are taken from the "forwarded"
+                        # message
+                        # TODO should any other fields be taken from the "forwarded" message ? (e.g. invisible_to_bots)
+                        (request.original_message.uuid, json.dumps(request.extra_fields, sort_keys=True))
+                    )
 
             async def _prepare_request(_request: Union[MessageType, "BotResponses"]) -> None:
                 if isinstance(request, BotResponses):
@@ -162,6 +169,9 @@ class BotMergerBase(BotMerger):
             context._bot_responses._response_queue.put_nowait(exc)
         finally:
             context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
+            # TODO TODO TODO cache
+
+            await self.set_mutable_state(tuple(caching_key), tuple(await context._bot_responses.get_all_responses()))
 
     def create_bot(
         self,
