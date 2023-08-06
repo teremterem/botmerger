@@ -100,7 +100,7 @@ async def test_trigger_bot() -> None:
     call_mock.assert_not_called()
     assert not responses.responses_so_far
 
-    await anext(responses)
+    await anext(aiter(responses))
 
     # even though we only requested one response all responses were calculated already (the rest are in the queue)
     assert call_mock.call_count == 4
@@ -137,7 +137,7 @@ async def test_trigger_bot_exception() -> None:
     call_mock.assert_not_called()
     assert not responses.responses_so_far
 
-    await anext(responses)
+    await anext(aiter(responses))
 
     # even though we only requested one response all responses were calculated already (the rest are in the queue)
     assert call_mock.call_count == 2
