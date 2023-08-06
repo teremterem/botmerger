@@ -233,35 +233,34 @@ class BotResponses:
         return responses[-1] if responses else None
 
     async def _wait_for_next_response(self) -> "MergedMessage":
-        async with self._lock:
-            if self._cached_bot_response_iterator is not None:
-                # we are yielding responses from a cached BotResponses instance
+        if self._cached_bot_response_iterator is not None:
+            # we are yielding responses from a cached BotResponses instance
+            response = await anext(self._cached_bot_response_iterator)
+        else:
+            if self._error:
+                raise self._error
+
+            if self._response_queue is None:
+                raise StopAsyncIteration
+
+            response = await self._response_queue.get()
+
+            if isinstance(response, BotResponses):
+                # we are going to yield responses from a cached BotResponses instance
+                self._cached_bot_response_iterator = aiter(response)
                 response = await anext(self._cached_bot_response_iterator)
+
             else:
-                if self._error:
+                if isinstance(response, Exception):
+                    self._error = ErrorWrapper(error=response)
                     raise self._error
 
-                if self._response_queue is None:
+                if response is self._END_OF_RESPONSES:
+                    self._response_queue = None
                     raise StopAsyncIteration
 
-                response = await self._response_queue.get()
-
-                if isinstance(response, BotResponses):
-                    # we are going to yield responses from a cached BotResponses instance
-                    self._cached_bot_response_iterator = aiter(response)
-                    response = await anext(self._cached_bot_response_iterator)
-
-                else:
-                    if isinstance(response, Exception):
-                        self._error = ErrorWrapper(error=response)
-                        raise self._error
-
-                    if response is self._END_OF_RESPONSES:
-                        self._response_queue = None
-                        raise StopAsyncIteration
-
-            self.responses_so_far.append(response)
-            return response
+        self.responses_so_far.append(response)
+        return response
 
     class _Iterator:
         def __init__(self, bot_responses: "BotResponses") -> None:
