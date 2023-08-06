@@ -5,7 +5,7 @@ import dataclasses
 import json
 import logging
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable
+from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable, List
 from uuid import UUID
 
 from pydantic import UUID4, BaseModel
@@ -124,7 +124,7 @@ class BotMergerBase(BotMerger):
         rewrite_cache: bool,
         **kwargs,
     ) -> None:
-        caching_key = []
+        caching_key: List[Any] = ["bot_response_cache", context.this_bot.alias]
         # pylint: disable=broad-except,protected-access
         try:
             prepared_requests = []
@@ -164,7 +164,7 @@ class BotMergerBase(BotMerger):
 
             cached_responses: Optional[BotResponses] = None
             if not context.this_bot.no_cache:
-                caching_key = tuple(caching_key)
+                caching_key: Tuple[Any, ...] = tuple(caching_key)
                 if not rewrite_cache:
                     # TODO is asyncio.Lock needed somewhere around here ?
                     cached_responses = await self.get_mutable_state(caching_key)
