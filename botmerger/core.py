@@ -68,10 +68,11 @@ class BotMergerBase(BotMerger):
     def trigger_bot(
         self,
         bot: MergedBot,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,  # TODO what to do with kwargs when there are multiple requests ?
     ) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
@@ -103,6 +104,7 @@ class BotMergerBase(BotMerger):
                 requests=requests,
                 override_sender=override_sender,
                 override_parent_ctx=override_parent_ctx,
+                rewrite_cache=rewrite_cache,
                 **kwargs,
             )
         )
@@ -114,27 +116,29 @@ class BotMergerBase(BotMerger):
         self,
         handler: SingleTurnHandler,
         context: SingleTurnContext,
-        request: Union[MessageType, "BotResponses"] = None,
-        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
-        override_sender: Optional[MergedParticipant] = None,
-        override_parent_ctx: Optional["MergedMessage"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]],
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]],
+        override_sender: Optional[MergedParticipant],
+        override_parent_ctx: Optional["MergedMessage"],
+        rewrite_cache: bool,
         **kwargs,
     ) -> None:
         # pylint: disable=broad-except,protected-access
         try:
             prepared_requests = []
+            uuids_for_cache = []  # TODO TODO TODO
 
             async def _prepare_merged_message(_request: MessageType) -> None:
-                prepared_requests.append(
-                    await self.create_next_message(
-                        content=_request,
-                        still_thinking=False,
-                        sender=override_sender,
-                        receiver=context.this_bot,
-                        parent_context=override_parent_ctx,
-                        **kwargs,
-                    )
+                request = await self.create_next_message(
+                    content=_request,
+                    still_thinking=False,
+                    sender=override_sender,
+                    receiver=context.this_bot,
+                    parent_context=override_parent_ctx,
+                    **kwargs,
                 )
+                prepared_requests.append(request)
+                uuids_for_cache.append(request.original_message.uuid)
 
             async def _prepare_request(_request: Union[MessageType, "BotResponses"]) -> None:
                 if isinstance(request, BotResponses):
@@ -164,12 +168,15 @@ class BotMergerBase(BotMerger):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
-            self.create_bot_async(alias=alias, name=name, description=description, single_turn=single_turn, **kwargs)
+            self.create_bot_async(
+                alias=alias, name=name, description=description, single_turn=single_turn, no_cache=no_cache, **kwargs
+            )
         )
 
     async def create_bot_async(
@@ -177,6 +184,7 @@ class BotMergerBase(BotMerger):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
@@ -185,7 +193,7 @@ class BotMergerBase(BotMerger):
 
         if not name:
             name = alias
-        bot = MergedBot(merger=self, alias=alias, name=name, description=description, **kwargs)
+        bot = MergedBot(merger=self, alias=alias, name=name, description=description, no_cache=no_cache, **kwargs)
 
         await self._register_bot(bot)
 

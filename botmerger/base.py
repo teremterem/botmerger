@@ -56,10 +56,11 @@ class BotMerger(ABC):
     def trigger_bot(
         self,
         bot: "MergedBot",
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional["MergedParticipant"] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> "BotResponses":
         """
@@ -73,6 +74,7 @@ class BotMerger(ABC):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> "MergedBot":
@@ -87,6 +89,7 @@ class BotMerger(ABC):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> "MergedBot":

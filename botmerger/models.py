@@ -1,4 +1,4 @@
-# pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module,too-many-arguments
 """Models for the BotMerger library."""
 from typing import Any, Optional, Union, Iterable, List
 
@@ -28,13 +28,15 @@ class MergedBot(MergedParticipant):
 
     alias: str
     description: Optional[str] = None
+    no_cache: bool = False
 
     def trigger(
         self,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> BotResponses:
         """
@@ -47,15 +49,17 @@ class MergedBot(MergedParticipant):
             requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
             **kwargs,
         )
 
     async def get_final_response(
         self,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
@@ -64,16 +68,18 @@ class MergedBot(MergedParticipant):
             requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
             **kwargs,
         )
         return await responses.get_final_response()
 
     async def get_all_responses(
         self,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> List["MergedMessage"]:
         """Get all the responses from the bot for a given request."""
@@ -82,6 +88,7 @@ class MergedBot(MergedParticipant):
             requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
             **kwargs,
         )
         return await responses.get_all_responses()
