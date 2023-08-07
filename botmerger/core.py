@@ -2,9 +2,10 @@
 """Implementations of BotMerger class."""
 import asyncio
 import dataclasses
+import json
 import logging
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable
+from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable, List
 from uuid import UUID
 
 from pydantic import UUID4, BaseModel
@@ -52,24 +53,27 @@ class BotMergerBase(BotMerger):
 
     async def get_default_msg_ctx(self) -> MergedMessage:
         if not self._default_msg_ctx:
+            default_user = await self.get_default_user()
             self._default_msg_ctx = await self._create_message(
                 uuid=self.DEFAULT_MSG_CTX_UUID,
                 content=self.DEFAULT_MSG_CTX_CONTENT,
                 still_thinking=False,
-                sender=await self.get_default_user(),
+                sender=default_user,
+                receiver=default_user,
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
             )
         return self._default_msg_ctx
 
-    async def trigger_bot(
+    def trigger_bot(
         self,
         bot: MergedBot,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,  # TODO what to do with kwargs when there are multiple requests ?
     ) -> BotResponses:
         handler = self._single_turn_handlers[bot.uuid]
@@ -101,6 +105,7 @@ class BotMergerBase(BotMerger):
                 requests=requests,
                 override_sender=override_sender,
                 override_parent_ctx=override_parent_ctx,
+                rewrite_cache=rewrite_cache,
                 **kwargs,
             )
         )
@@ -112,26 +117,35 @@ class BotMergerBase(BotMerger):
         self,
         handler: SingleTurnHandler,
         context: SingleTurnContext,
-        request: Union[MessageType, "BotResponses"] = None,
-        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
-        override_sender: Optional[MergedParticipant] = None,
-        override_parent_ctx: Optional["MergedMessage"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]],
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]],
+        override_sender: Optional[MergedParticipant],
+        override_parent_ctx: Optional["MergedMessage"],
+        rewrite_cache: bool,
         **kwargs,
     ) -> None:
+        caching_key: List[Any] = ["bot_response_cache", context.this_bot.alias]
         # pylint: disable=broad-except,protected-access
         try:
             prepared_requests = []
 
             async def _prepare_merged_message(_request: MessageType) -> None:
-                prepared_requests.append(
-                    await self.create_next_message(
-                        content=_request,
-                        still_thinking=False,
-                        sender=override_sender,
-                        parent_context=override_parent_ctx,
-                        **kwargs,
-                    )
+                request = await self.create_next_message(
+                    content=_request,
+                    still_thinking=False,
+                    sender=override_sender,
+                    receiver=context.this_bot,
+                    parent_context=override_parent_ctx,
+                    **kwargs,
                 )
+                prepared_requests.append(request)
+                if not context.this_bot.no_cache:
+                    caching_key.append(
+                        # uuid is taken from the original message, but the extra fields are taken from the "forwarded"
+                        # message
+                        # TODO should any other fields be taken from the "forwarded" message ? (e.g. invisible_to_bots)
+                        (request.original_message.uuid, json.dumps(request.extra_fields, sort_keys=True))
+                    )
 
             async def _prepare_request(_request: Union[MessageType, "BotResponses"]) -> None:
                 if isinstance(request, BotResponses):
@@ -148,8 +162,28 @@ class BotMergerBase(BotMerger):
 
             context.requests = tuple(prepared_requests)
 
-            with context:
-                await handler(context)
+            cached_responses: Optional[BotResponses] = None
+            if not context.this_bot.no_cache:
+                caching_key: Tuple[Any, ...] = tuple(caching_key)
+                if not rewrite_cache:
+                    # TODO is asyncio.Lock needed somewhere around here ?
+                    cached_responses = await self.get_mutable_state(caching_key)
+
+            if cached_responses is None:
+                if not context.this_bot.no_cache:
+                    # TODO come up with a way to put only json serializable stuff into the "mutable state"
+                    # TODO introduce some sort of CachedBotResponses class, capable of creating new "forwarded"
+                    #  messages that become part of the new chat history every time those response messages are
+                    #  fetched from the cache (but it shouldn't forward the "forwarded" messages, it should
+                    #  forward the original messages instead)
+                    await self.set_mutable_state(caching_key, context._bot_responses)
+
+                with context:
+                    await handler(context)
+            else:
+                # we have a cache hit
+                context._bot_responses._response_queue.put_nowait(cached_responses)
+
         except Exception as exc:
             logger.debug(exc, exc_info=exc)
             context._bot_responses._response_queue.put_nowait(exc)
@@ -161,12 +195,15 @@ class BotMergerBase(BotMerger):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
-            self.create_bot_async(alias=alias, name=name, description=description, single_turn=single_turn, **kwargs)
+            self.create_bot_async(
+                alias=alias, name=name, description=description, single_turn=single_turn, no_cache=no_cache, **kwargs
+            )
         )
 
     async def create_bot_async(
@@ -174,6 +211,7 @@ class BotMergerBase(BotMerger):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> MergedBot:
@@ -182,7 +220,7 @@ class BotMergerBase(BotMerger):
 
         if not name:
             name = alias
-        bot = MergedBot(merger=self, alias=alias, name=name, description=description, **kwargs)
+        bot = MergedBot(merger=self, alias=alias, name=name, description=description, no_cache=no_cache, **kwargs)
 
         await self._register_bot(bot)
 
@@ -219,10 +257,12 @@ class BotMergerBase(BotMerger):
             channel_msg = None
 
         if not channel_msg:
+            user = await self.create_user(name=user_display_name)
             channel_msg = await self._create_message(
                 content=f"{user_display_name}'s channel",
                 still_thinking=False,
-                sender=await self.create_user(name=user_display_name),
+                sender=user,
+                receiver=user,
                 parent_context=None,
                 responds_to=None,
                 goes_after=None,
@@ -245,6 +285,7 @@ class BotMergerBase(BotMerger):
         content: MessageType,
         still_thinking: Optional[bool],
         sender: MergedParticipant,
+        receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
         goes_after: Optional[MergedMessage],
@@ -255,15 +296,11 @@ class BotMergerBase(BotMerger):
             if still_thinking is None:
                 # pass on the value from the original message
                 still_thinking = content.still_thinking
-            if isinstance(content, ForwardedMessage):
-                # make sure we are not forwarding a forwarded message
-                # TODO do this recursively or just rely on the fact that all messages are created by this method
-                #  and there is never a ForwardedMessage instance in original_message field ?
-                content = content.original_message
 
             message = ForwardedMessage(
                 merger=self,
                 sender=sender,
+                receiver=receiver,
                 original_message=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
@@ -288,6 +325,7 @@ class BotMergerBase(BotMerger):
             message = OriginalMessage(
                 merger=self,
                 sender=sender,
+                receiver=receiver,
                 content=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
@@ -298,7 +336,12 @@ class BotMergerBase(BotMerger):
 
         await self._register_merged_object(message)
         if message.parent_context:
-            await self.set_mutable_state(self._generate_latest_message_key(message.parent_context.uuid), message.uuid)
+            await self.set_mutable_state(
+                self._generate_latest_message_in_chat_key(
+                    message.parent_context.uuid, message.sender.uuid, message.receiver.uuid
+                ),
+                message.uuid,
+            )
         return message
 
     async def create_next_message(
@@ -306,6 +349,7 @@ class BotMergerBase(BotMerger):
         content: MessageType,
         still_thinking: Optional[bool],
         sender: Optional[MergedParticipant],
+        receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage] = None,
         **kwargs,
@@ -315,7 +359,9 @@ class BotMergerBase(BotMerger):
         if not parent_context:
             parent_context = await self.get_default_msg_ctx()
 
-        latest_message_uuid = await self.get_mutable_state(self._generate_latest_message_key(parent_context.uuid))
+        latest_message_uuid = await self.get_mutable_state(
+            self._generate_latest_message_in_chat_key(parent_context.uuid, sender.uuid, receiver.uuid)
+        )
         if latest_message_uuid:
             latest_message = await self.find_message(latest_message_uuid)
         else:
@@ -325,6 +371,7 @@ class BotMergerBase(BotMerger):
             content=content,
             still_thinking=still_thinking,
             sender=sender,
+            receiver=receiver,
             parent_context=parent_context,
             responds_to=responds_to,
             goes_after=latest_message,
@@ -375,13 +422,14 @@ class BotMergerBase(BotMerger):
         return "channel_by_type_and_id", channel_type, channel_id
 
     # noinspection PyMethodMayBeStatic
-    def _generate_latest_message_key(self, context_uuid: UUID4) -> Tuple[str, UUID4]:
+    def _generate_latest_message_in_chat_key(
+        self, context_uuid: UUID4, *participant_uuids: UUID4
+    ) -> Tuple[str, UUID4, ...]:
         """Generate a key for the latest message in a given context."""
-        # TODO should the thread be identified by `ctx_msg_uuid + sender_uuid + receiver_uuid` ? anything else ?
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
         #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
         #  some other solution ? Maybe some random identifier stored in a ContextVar ?
-        return "latest_message_in_context", context_uuid
+        return "latest_message_in_chat", context_uuid, *sorted(participant_uuids)
 
     # noinspection PyMethodMayBeStatic
     def _assert_correct_obj_type_or_none(self, obj: Any, expected_type: Type, key: Any) -> None:

@@ -1,11 +1,23 @@
 # pylint: disable=no-name-in-module,too-many-arguments
 """Base classes for the BotMerger library."""
 from abc import ABC, abstractmethod
-from asyncio import Queue
-from collections import deque
+from asyncio import Queue, Lock
+from collections import abc
 from contextvars import ContextVar
 from contextvars import Token
-from typing import Any, TYPE_CHECKING, Optional, Dict, Callable, Awaitable, Union, List, Tuple, Iterable
+from typing import (
+    Any,
+    TYPE_CHECKING,
+    Optional,
+    Dict,
+    Callable,
+    Awaitable,
+    Union,
+    List,
+    Tuple,
+    Iterable,
+    AsyncIterable,
+)
 from uuid import uuid4, UUID
 
 from pydantic import BaseModel, UUID4, Field
@@ -41,13 +53,14 @@ class BotMerger(ABC):
         """Get the default message context."""
 
     @abstractmethod
-    async def trigger_bot(
+    def trigger_bot(
         self,
         bot: "MergedBot",
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional["MergedParticipant"] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> "BotResponses":
         """
@@ -61,6 +74,7 @@ class BotMerger(ABC):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> "MergedBot":
@@ -75,6 +89,7 @@ class BotMerger(ABC):
         alias: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
     ) -> "MergedBot":
@@ -113,6 +128,7 @@ class BotMerger(ABC):
         content: "MessageType",
         still_thinking: Optional[bool],
         sender: Optional["MergedParticipant"],
+        receiver: "MergedParticipant",
         parent_context: Optional["MergedMessage"],
         responds_to: Optional["MergedMessage"] = None,
         **kwargs,
@@ -181,8 +197,8 @@ class BaseMessage:
     subclasses one way or another (either as a Pydantic field or as a property).
     """
 
-    original_sender: "MergedParticipant"
     content: Union[str, Any]
+    original_message: "MergedMessage"
 
 
 class BotResponses:
@@ -196,32 +212,13 @@ class BotResponses:
 
     def __init__(self) -> None:
         self.responses_so_far: List["MergedMessage"] = []
-        self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception]]] = Queue()
+        self._response_queue: Optional[Queue[Union["MergedMessage", object, Exception, "BotResponses"]]] = Queue()
         self._error: Optional[ErrorWrapper] = None
+        self._cached_bot_response_iterator: Optional[BotResponses._Iterator] = None
+        self._lock = Lock()
 
-    def __aiter__(self) -> "BotResponses":
-        return self
-
-    # noinspection PyTypeChecker
-    async def __anext__(self) -> "MergedMessage":
-        if self._error:
-            raise self._error
-
-        if self._response_queue is None:
-            raise StopAsyncIteration
-
-        response = await self._response_queue.get()
-
-        if isinstance(response, Exception):
-            self._error = ErrorWrapper(error=response)
-            raise self._error
-
-        if response is self._END_OF_RESPONSES:
-            self._response_queue = None
-            raise StopAsyncIteration
-
-        self.responses_so_far.append(response)
-        return response
+    def __aiter__(self) -> "BotResponses._Iterator":
+        return BotResponses._Iterator(self)
 
     async def get_all_responses(self) -> List["MergedMessage"]:
         """Wait until all the responses are received and return them as a list."""
@@ -235,6 +232,55 @@ class BotResponses:
         responses = await self.get_all_responses()
         return responses[-1] if responses else None
 
+    async def _wait_for_next_response(self) -> "MergedMessage":
+        if self._cached_bot_response_iterator is not None:
+            # we are yielding responses from a cached BotResponses instance
+            response = await anext(self._cached_bot_response_iterator)
+        else:
+            if self._error:
+                raise self._error
+
+            if self._response_queue is None:
+                raise StopAsyncIteration
+
+            response = await self._response_queue.get()
+
+            if isinstance(response, BotResponses):
+                # we are going to yield responses from a cached BotResponses instance
+                self._cached_bot_response_iterator = aiter(response)
+                response = await anext(self._cached_bot_response_iterator)
+
+            else:
+                if isinstance(response, Exception):
+                    self._error = ErrorWrapper(error=response)
+                    raise self._error
+
+                if response is self._END_OF_RESPONSES:
+                    self._response_queue = None
+                    raise StopAsyncIteration
+
+        self.responses_so_far.append(response)
+        return response
+
+    class _Iterator:
+        def __init__(self, bot_responses: "BotResponses") -> None:
+            self._bot_responses = bot_responses
+            self._index = 0
+
+        async def __anext__(self) -> "MergedMessage":
+            try:
+                response = self._bot_responses.responses_so_far[self._index]
+            except IndexError:
+                async with self._bot_responses._lock:
+                    try:
+                        response = self._bot_responses.responses_so_far[self._index]
+                    except IndexError:
+                        # this will also raise StopAsyncIteration if there are no more responses
+                        response = await self._bot_responses._wait_for_next_response()
+
+            self._index += 1
+            return response
+
 
 # noinspection PyProtectedMember
 class SingleTurnContext:
@@ -245,10 +291,10 @@ class SingleTurnContext:
     single turn handler function to yield a response to the request.
     """
 
-    _previous_ctx_token_stack: ContextVar[deque[Token]] = ContextVar("_previous_ctx_token_stack")
-    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
-
     requests: Tuple["MergedMessage"]
+
+    _previous_ctx_token: ContextVar[Token] = ContextVar("_previous_ctx_token")
+    _current_context: ContextVar[Optional["SingleTurnContext"]] = ContextVar("_current_context", default=None)
 
     def __init__(
         self,
@@ -266,6 +312,14 @@ class SingleTurnContext:
         """The last request that was sent to the bot."""
         return self.requests[-1]
 
+    async def get_full_conversation(
+        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+    ) -> List["MergedMessage"]:
+        """Get the full conversation history for this message (including this message)."""
+        return await self.concluding_request.get_full_conversation(
+            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+        )
+
     async def yield_response(
         self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
     ) -> "MergedMessage":
@@ -274,6 +328,7 @@ class SingleTurnContext:
             content=response,
             still_thinking=still_thinking,
             sender=self.this_bot,
+            receiver=self.concluding_request.sender,
             parent_context=self.concluding_request.parent_context,
             responds_to=self.concluding_request,
             **kwargs,
@@ -289,24 +344,27 @@ class SingleTurnContext:
         """Yield a final response to the request."""
         return await self.yield_response(response, still_thinking=False, **kwargs)
 
-    async def yield_from(self, another_bot_responses: BotResponses, still_thinking: Optional[bool] = None) -> None:
-        """Yield all the responses from another bot to the request."""
-        async for response in another_bot_responses:
-            await self.yield_response(response, still_thinking=still_thinking)
+    async def yield_from(
+        self,
+        iterable: Iterable[MessageType] | AsyncIterable[MessageType],
+        still_thinking: Optional[bool] = None,
+    ) -> None:
+        """Yield responses to the request from an iterable."""
+        if isinstance(iterable, abc.AsyncIterable):
+            async for response in iterable:
+                await self.yield_response(response, still_thinking=still_thinking)
+        else:
+            for response in iterable:
+                await self.yield_response(response, still_thinking=still_thinking)
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""
-        try:
-            previous_ctx_token_stack = self._previous_ctx_token_stack.get()
-        except LookupError:
-            previous_ctx_token_stack = deque()
-            self._previous_ctx_token_stack.set(previous_ctx_token_stack)
-
+        # TODO emphasize that nesting contexts is not supported unless asyncio.create_task is used for each nesting
         previous_ctx_token = self._current_context.set(self)  # <- this is the context switch
-        previous_ctx_token_stack.append(previous_ctx_token)
+        self._previous_ctx_token.set(previous_ctx_token)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Restore the context that was current before this one."""
-        previous_ctx_token = self._previous_ctx_token_stack.get().pop()
+        previous_ctx_token = self._previous_ctx_token.get()
         self._current_context.reset(previous_ctx_token)

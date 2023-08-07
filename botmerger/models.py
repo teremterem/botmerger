@@ -1,6 +1,6 @@
-# pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module,too-many-arguments
 """Models for the BotMerger library."""
-from typing import Any, Optional, Union, Iterable
+from typing import Any, Optional, Union, Iterable, List
 
 from pydantic import Field
 
@@ -28,43 +28,70 @@ class MergedBot(MergedParticipant):
 
     alias: str
     description: Optional[str] = None
+    no_cache: bool = False
 
-    async def trigger(
+    def trigger(
         self,
-        request: Union[MessageType, "BotResponses"] = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
         requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> BotResponses:
         """
         Trigger this bot to respond to a message or messages. Returns an object that can be used to retrieve the bot's
         response(s) in an asynchronous manner.
         """
-        return await self.merger.trigger_bot(
+        return self.merger.trigger_bot(
             bot=self,
             request=request,
             requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
             **kwargs,
         )
 
     async def get_final_response(
         self,
-        request: MessageType = None,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
         override_sender: Optional[MergedParticipant] = None,
         override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
         **kwargs,
     ) -> Optional["MergedMessage"]:
         """Get the final response from the bot for a given request."""
-        responses = await self.trigger(
-            request,
+        responses = self.trigger(
+            request=request,
+            requests=requests,
             override_sender=override_sender,
             override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
             **kwargs,
         )
         return await responses.get_final_response()
+
+    async def get_all_responses(
+        self,
+        request: Optional[Union[MessageType, "BotResponses"]] = None,
+        requests: Optional[Iterable[Union[MessageType, "BotResponses"]]] = None,
+        override_sender: Optional[MergedParticipant] = None,
+        override_parent_ctx: Optional["MergedMessage"] = None,
+        rewrite_cache: bool = False,
+        **kwargs,
+    ) -> List["MergedMessage"]:
+        """Get all the responses from the bot for a given request."""
+        responses = self.trigger(
+            request=request,
+            requests=requests,
+            override_sender=override_sender,
+            override_parent_ctx=override_parent_ctx,
+            rewrite_cache=rewrite_cache,
+            **kwargs,
+        )
+        return await responses.get_all_responses()
 
     def single_turn(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         """
@@ -89,10 +116,50 @@ class MergedMessage(BaseMessage, MergedObject):
     """A message that was sent in a channel."""
 
     sender: MergedParticipant
+    receiver: MergedParticipant
     still_thinking: bool
     parent_context: Optional["MergedMessage"]
     responds_to: Optional["MergedMessage"]
     goes_after: Optional["MergedMessage"]
+    invisible_to_bots: bool = False
+
+    async def get_conversation_history(
+        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+    ) -> List["MergedMessage"]:
+        """Get the conversation history for this message (excluding this message)."""
+        # TODO does it need to by async ?
+        # TODO move this functionality to BotMerger ?
+        history = []
+        msg = self.goes_after
+        while msg and (max_length is None or len(history) < max_length):
+            if include_invisible_to_bots or not msg.invisible_to_bots:
+                history.append(msg)
+            msg = msg.goes_after
+        history.reverse()
+        return history
+
+    async def get_full_conversation(
+        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+    ) -> List["MergedMessage"]:
+        """Get the full conversation history for this message (including this message)."""
+        # TODO does it need to by async ?
+        if max_length is not None:
+            # let's account for the current message as well
+            max_length -= 1
+        result = await self.get_conversation_history(
+            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+        )
+        if include_invisible_to_bots or not self.invisible_to_bots:
+            result.append(self)
+        return result
+
+    async def get_ultimate_original_message(self) -> "OriginalMessage":
+        """Get the ultimate original message for this message."""
+        # TODO does it need to by async ?
+        msg = self
+        while isinstance(msg, ForwardedMessage):
+            msg = msg.original_message
+        return msg
 
 
 class OriginalMessage(MergedMessage):
@@ -101,9 +168,9 @@ class OriginalMessage(MergedMessage):
     content: Union[str, Any]
 
     @property
-    def original_sender(self) -> MergedParticipant:
-        """For an original message, the original sender is the same as the sender."""
-        return self.sender
+    def original_message(self) -> "MergedMessage":
+        """The original message is itself."""
+        return self
 
 
 class ForwardedMessage(MergedMessage):
@@ -112,12 +179,9 @@ class ForwardedMessage(MergedMessage):
     original message.
     """
 
-    original_message: OriginalMessage
+    original_message: MergedMessage
 
-    @property
-    def original_sender(self) -> MergedParticipant:
-        """The original sender of the forwarded message."""
-        return self.original_message.sender
+    # TODO does `invisible_to_bots` need to be inherited from the original message as well ?
 
     @property
     def content(self) -> MessageContent:
