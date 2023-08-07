@@ -12,6 +12,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.11"  # TODO extend this to older versions too
 pydantic = "^1"
+pyyaml = "^6"
 
 [tool.poetry.dev-dependencies]
 black = "*"
