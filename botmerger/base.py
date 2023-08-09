@@ -182,7 +182,10 @@ class MergedObject(BaseModel):
 
     def dict(self, **kwargs):
         """Get a dict representation of the model."""
-        kwargs.setdefault("exclude", set()).update(("merger", "uuid"))
+        exclude = kwargs.get("exclude")
+        if not exclude:
+            kwargs["exclude"] = exclude = set()
+        exclude.update(("merger", "uuid"))
         return {"uuid": str(self.uuid), **super().dict(**kwargs)}
 
     def __eq__(self, other: object) -> bool:
