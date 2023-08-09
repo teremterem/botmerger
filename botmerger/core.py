@@ -5,9 +5,11 @@ import dataclasses
 import json
 import logging
 from abc import abstractmethod
+from pathlib import Path
 from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable, List
 from uuid import UUID
 
+import yaml
 from pydantic import UUID4, BaseModel
 
 from botmerger.base import (
@@ -462,3 +464,20 @@ class InMemoryBotMerger(BotMergerBase):
 
     async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
         return self._immutable_objects.get(key)
+
+
+class YamlLogBotMerger(InMemoryBotMerger):
+    """A bot merger that logs all the objects to a YAML file."""
+
+    def __init__(self, yaml_log_file: Union[str, Path]) -> None:
+        super().__init__()
+        self._yaml_log_file = yaml_log_file if isinstance(yaml_log_file, Path) else Path(yaml_log_file)
+
+    async def _register_merged_object(self, obj: MergedObject) -> None:
+        await super()._register_merged_object(obj)
+
+        append_delimiter = self._yaml_log_file.exists() and self._yaml_log_file.stat().st_size > 0
+        with self._yaml_log_file.open("a", encoding="utf-8") as file:
+            if append_delimiter:
+                file.write("\n---\n\n")
+            yaml.dump(obj.dict(), file, allow_unicode=True, indent=4)
