@@ -180,6 +180,11 @@ class MergedObject(BaseModel):
     # TODO validate that all values in `extra_fields` are json-serializable
     extra_fields: Dict[str, Any] = Field(default_factory=dict)
 
+    def dict(self, **kwargs):
+        """Get a dict representation of the model."""
+        kwargs.setdefault("exclude", set()).update(("merger", "uuid"))
+        return {"uuid": str(self.uuid), **super().dict(**kwargs)}
+
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
         if not isinstance(other, MergedObject):
