@@ -60,18 +60,42 @@ class YamlLogBotMerger(InMemoryBotMerger):
 class YamlSerializer(MergedSerializerVisitor):
     """A YAML serializer for merged objects."""
 
-    def serialize_bot(self, obj: MergedBot) -> Any:
-        # TODO TODO TODO
-        return obj.dict()
+    def _pre_serialize(self, obj: MergedObject, **kwargs) -> Dict[str, Any]:
+        result = obj.dict(**kwargs)
+        obj_uuid = result.pop("uuid")
+        return {
+            "_type": obj.__class__.__name__,
+            "uuid": str(obj_uuid),
+            **result,
+        }
 
-    def serialize_user(self, obj: MergedUser) -> Any:
+    def serialize_bot(self, obj: MergedBot) -> Dict[str, Any]:
+        result = self._pre_serialize(obj)
         # TODO TODO TODO
-        return obj.dict()
+        return result
 
-    def serialize_original_message(self, obj: OriginalMessage) -> Any:
+    def serialize_user(self, obj: MergedUser) -> Dict[str, Any]:
+        result = self._pre_serialize(obj)
         # TODO TODO TODO
-        return obj.dict()
+        return result
 
-    def serialize_forwarded_message(self, obj: ForwardedMessage) -> Any:
+    def _pre_serialize_message(self, obj: MergedObject, **kwargs) -> Dict[str, Any]:
+        result = self._pre_serialize(obj, **kwargs)
         # TODO TODO TODO
-        return obj.dict()
+        result.pop("parent_context")
+        result.pop("responds_to")
+        result.pop("goes_after")
+        result.pop("sender")
+        result.pop("receiver")
+        return result
+
+    def serialize_original_message(self, obj: OriginalMessage) -> Dict[str, Any]:
+        result = self._pre_serialize_message(obj)
+        # TODO TODO TODO
+        return result
+
+    def serialize_forwarded_message(self, obj: ForwardedMessage) -> Dict[str, Any]:
+        result = self._pre_serialize_message(obj)
+        # TODO TODO TODO
+        result.pop("original_message")
+        return result
