@@ -6,14 +6,13 @@ from typing import Any, Optional, Dict, Union
 import yaml
 from pydantic import UUID4
 
-from botmerger import MergedMessage
 from botmerger.base import (
     MergedObject,
     ObjectKey,
     MergedSerializerVisitor,
 )
 from botmerger.core import BotMergerBase
-from botmerger.models import MergedBot, MergedUser, OriginalMessage, ForwardedMessage
+from botmerger.models import MergedBot, MergedUser, MergedMessage, OriginalMessage, ForwardedMessage
 
 
 class InMemoryBotMerger(BotMergerBase):
