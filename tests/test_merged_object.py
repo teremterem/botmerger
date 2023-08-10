@@ -12,7 +12,7 @@ class SomeMergedObject(MergedObject):
     """A subclass of `MergedObject` for testing."""
 
     def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
-        pass
+        """Empty serialization method to make the class concrete."""
 
 
 def test_merged_object() -> None:
