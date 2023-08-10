@@ -62,7 +62,7 @@ class BotMergerBase(BotMerger):
                 receiver=default_user,
                 parent_context=None,
                 responds_to=None,
-                goes_after=None,
+                prev_msg_uuid=None,
             )
         return self._default_msg_ctx
 
@@ -265,7 +265,7 @@ class BotMergerBase(BotMerger):
                 receiver=user,
                 parent_context=None,
                 responds_to=None,
-                goes_after=None,
+                prev_msg_uuid=None,
                 extra_fields={
                     "channel_type": channel_type,
                     "channel_id": channel_id,
@@ -288,7 +288,7 @@ class BotMergerBase(BotMerger):
         receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
         responds_to: Optional[MergedMessage],
-        goes_after: Optional[MergedMessage],
+        prev_msg_uuid: Optional[UUID4],
         **kwargs,
     ) -> OriginalMessage:
         if isinstance(content, MergedMessage):
@@ -305,7 +305,7 @@ class BotMergerBase(BotMerger):
                 still_thinking=still_thinking,
                 parent_context=parent_context,
                 responds_to=responds_to,
-                goes_after=goes_after,
+                prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
             )
 
@@ -330,7 +330,7 @@ class BotMergerBase(BotMerger):
                 still_thinking=still_thinking,
                 parent_context=parent_context,
                 responds_to=responds_to,
-                goes_after=goes_after,
+                prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
             )
 
@@ -362,11 +362,6 @@ class BotMergerBase(BotMerger):
         latest_message_uuid = await self.get_mutable_state(
             self._generate_latest_message_in_chat_key(parent_context.uuid, sender.uuid, receiver.uuid)
         )
-        if latest_message_uuid:
-            latest_message = await self.find_message(latest_message_uuid)
-        else:
-            latest_message = None
-
         return await self._create_message(
             content=content,
             still_thinking=still_thinking,
@@ -374,7 +369,7 @@ class BotMergerBase(BotMerger):
             receiver=receiver,
             parent_context=parent_context,
             responds_to=responds_to,
-            goes_after=latest_message,
+            prev_msg_uuid=latest_message_uuid,
             **kwargs,
         )
 
