@@ -1,5 +1,6 @@
 # pylint: disable=no-name-in-module,too-many-arguments
 """Models for the BotMerger library."""
+from abc import ABC
 from typing import Any, Optional, Union, Iterable, List
 
 from pydantic import Field
@@ -11,10 +12,11 @@ from botmerger.base import (
     MessageContent,
     MessageType,
     BaseMessage,
+    MergedSerializerVisitor,
 )
 
 
-class MergedParticipant(MergedObject):
+class MergedParticipant(MergedObject, ABC):
     """A chat participant."""
 
     name: str
@@ -105,14 +107,22 @@ class MergedBot(MergedParticipant):
     def __call__(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         return self.single_turn(handler)
 
+    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return visitor.serialize_bot(self)
+
 
 class MergedUser(MergedParticipant):
     """A user that can interact with bots."""
 
     is_human: bool = Field(True, const=True)
 
+    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return visitor.serialize_user(self)
 
-class MergedMessage(BaseMessage, MergedObject):
+
+class MergedMessage(BaseMessage, MergedObject, ABC):
     """A message that was sent in a channel."""
 
     sender: MergedParticipant
@@ -159,6 +169,8 @@ class MergedMessage(BaseMessage, MergedObject):
         msg = self
         while isinstance(msg, ForwardedMessage):
             msg = msg.original_message
+        if not isinstance(msg, OriginalMessage):
+            raise RuntimeError("OriginalMessage not found")
         return msg
 
 
@@ -171,6 +183,10 @@ class OriginalMessage(MergedMessage):
     def original_message(self) -> "MergedMessage":
         """The original message is itself."""
         return self
+
+    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return visitor.serialize_original_message(self)
 
 
 class ForwardedMessage(MergedMessage):
@@ -187,3 +203,7 @@ class ForwardedMessage(MergedMessage):
     def content(self) -> MessageContent:
         """The content of the original message."""
         return self.original_message.content
+
+    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return visitor.serialize_forwarded_message(self)

@@ -1,15 +1,13 @@
 # pylint: disable=no-name-in-module,too-many-arguments
-"""Implementations of BotMerger class."""
+"""Base abstract implementation of the BotMerger interface."""
 import asyncio
 import dataclasses
 import json
 import logging
 from abc import abstractmethod
-from pathlib import Path
 from typing import Any, Optional, Tuple, Type, Dict, Union, Iterable, List
 from uuid import UUID
 
-import yaml
 from pydantic import UUID4, BaseModel
 
 from botmerger.base import (
@@ -441,43 +439,3 @@ class BotMergerBase(BotMerger):
                 f"wrong type of object by the key {key!r}: "
                 f"expected {expected_type.__name__!r}, got {type(obj).__name__!r}",
             )
-
-
-class InMemoryBotMerger(BotMergerBase):
-    """An in-memory object manager."""
-
-    # TODO should in-memory implementation care about eviction of old objects ?
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._immutable_objects: Dict[ObjectKey, Any] = {}
-        self._mutable_objects: Dict[UUID4, Any] = {}
-
-    async def set_mutable_state(self, key: ObjectKey, state: Any) -> None:
-        self._mutable_objects[key] = state
-
-    async def get_mutable_state(self, key: ObjectKey) -> Optional[Any]:
-        return self._mutable_objects.get(key)
-
-    async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
-        self._immutable_objects[key] = value
-
-    async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
-        return self._immutable_objects.get(key)
-
-
-class YamlLogBotMerger(InMemoryBotMerger):
-    """A bot merger that logs all the objects to a YAML file."""
-
-    def __init__(self, yaml_log_file: Union[str, Path]) -> None:
-        super().__init__()
-        self._yaml_log_file = yaml_log_file if isinstance(yaml_log_file, Path) else Path(yaml_log_file)
-
-    async def _register_merged_object(self, obj: MergedObject) -> None:
-        await super()._register_merged_object(obj)
-
-        append_delimiter = self._yaml_log_file.exists() and self._yaml_log_file.stat().st_size > 0
-        with self._yaml_log_file.open("a", encoding="utf-8") as file:
-            if append_delimiter:
-                file.write("\n---\n\n")
-            yaml.dump(obj.dict(), file, allow_unicode=True, indent=4)

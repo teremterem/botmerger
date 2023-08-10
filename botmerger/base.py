@@ -17,6 +17,7 @@ from typing import (
     Tuple,
     Iterable,
     AsyncIterable,
+    Set,
 )
 from uuid import uuid4, UUID
 
@@ -25,7 +26,14 @@ from pydantic import BaseModel, UUID4, Field
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedMessage, MergedParticipant, MergedUser
+    from botmerger.models import (
+        MergedBot,
+        MergedMessage,
+        MergedParticipant,
+        MergedUser,
+        OriginalMessage,
+        ForwardedMessage,
+    )
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
@@ -151,7 +159,38 @@ class BotMerger(ABC):
         """Get a mutable state associated with a given key."""
 
 
-class MergedObject(BaseModel):
+class MergedSerializerVisitor(ABC):
+    """
+    A visitor for `MergedObject` serialization. This is an abstract class that should be subclassed by concrete
+    implementations. The purpose of this class is to allow for serialization of `MergedObject` instances in a way that
+    is independent of the serialization format. For example, one can implement a serializer that serializes
+    `MergedObject` instances into YAML, another one that serializes them into JSON, and so on.
+    """
+
+    def serialize(self, obj: "MergedObject") -> Any:
+        """Serialize MergedObject of an arbitrary type."""
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        return obj._serialize(self)
+
+    @abstractmethod
+    def serialize_bot(self, obj: "MergedBot") -> Any:
+        """Serialize a MergedBot instance."""
+
+    @abstractmethod
+    def serialize_user(self, obj: "MergedUser") -> Any:
+        """Serialize a MergedUser instance."""
+
+    @abstractmethod
+    def serialize_original_message(self, obj: "OriginalMessage") -> Any:
+        """Serialize an OriginalMessage instance."""
+
+    @abstractmethod
+    def serialize_forwarded_message(self, obj: "ForwardedMessage") -> Any:
+        """Serialize a ForwardedMessage instance."""
+
+
+class MergedObject(BaseModel, ABC):
     """
     Base class for all BotMerger models. All the child classes of this class are meant to be immutable. Whatever
     mutable state one needs to associate with these objects should not be stored in the objects directly. Instead,
@@ -182,11 +221,20 @@ class MergedObject(BaseModel):
 
     def dict(self, **kwargs):
         """Get a dict representation of the model."""
-        exclude = kwargs.get("exclude")
-        if not exclude:
-            kwargs["exclude"] = exclude = set()
-        exclude.update(("merger", "uuid"))
-        return {"uuid": str(self.uuid), **super().dict(**kwargs)}
+        exclude: Union[Iterable, Set] = kwargs.get("exclude")
+        if exclude is None:
+            exclude = kwargs["exclude"] = set()
+        elif not isinstance(exclude, set):
+            exclude = kwargs["exclude"] = set(exclude)
+        exclude.add("merger")
+        return super().dict(**kwargs)
+
+    @abstractmethod
+    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        """
+        Serialize the model.
+        :param visitor: A visitor object that will be used to serialize the model.
+        """
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
