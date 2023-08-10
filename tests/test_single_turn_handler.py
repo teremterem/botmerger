@@ -5,8 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from botmerger.base import SingleTurnContext
-from botmerger.core import InMemoryBotMerger
+from botmerger import InMemoryBotMerger, SingleTurnContext
 from botmerger.errors import BotAliasTakenError, ErrorWrapper
 
 

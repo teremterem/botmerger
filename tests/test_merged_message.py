@@ -1,6 +1,5 @@
 """Tests for the MergedMessage subclasses."""
-from botmerger import MergedUser, InMemoryBotMerger
-from botmerger.models import ForwardedMessage, OriginalMessage
+from botmerger import MergedUser, InMemoryBotMerger, ForwardedMessage, OriginalMessage
 
 
 def test_original_and_forwarded_message() -> None:
