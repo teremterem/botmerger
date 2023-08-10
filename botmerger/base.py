@@ -17,7 +17,6 @@ from typing import (
     Tuple,
     Iterable,
     AsyncIterable,
-    Set,
 )
 from uuid import uuid4, UUID
 
@@ -221,11 +220,8 @@ class MergedObject(BaseModel, ABC):
 
     def dict(self, **kwargs):
         """Get a dict representation of the model."""
-        exclude: Union[Iterable, Set] = kwargs.get("exclude")
-        if exclude is None:
-            exclude = kwargs["exclude"] = set()
-        elif not isinstance(exclude, set):
-            exclude = kwargs["exclude"] = set(exclude)
+        exclude = kwargs.get("exclude")
+        exclude = kwargs["exclude"] = set(exclude) if exclude else set()
         exclude.add("merger")
         return super().dict(**kwargs)
 

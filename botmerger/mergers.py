@@ -6,6 +6,7 @@ from typing import Any, Optional, Dict, Union
 import yaml
 from pydantic import UUID4
 
+from botmerger import MergedMessage
 from botmerger.base import (
     MergedObject,
     ObjectKey,
@@ -79,14 +80,24 @@ class YamlSerializer(MergedSerializerVisitor):
         # TODO TODO TODO
         return result
 
-    def _pre_serialize_message(self, obj: MergedObject, **kwargs) -> Dict[str, Any]:
-        result = self._pre_serialize(obj, **kwargs)
+    def _pre_serialize_message(self, obj: MergedMessage) -> Dict[str, Any]:
+        result = self._pre_serialize(obj, exclude={"sender, receiver"})
+
         # TODO TODO TODO
         result.pop("parent_context")
         result.pop("responds_to")
         result.pop("goes_after")
-        result.pop("sender")
-        result.pop("receiver")
+
+        result["sender"] = {
+            "uuid": str(obj.sender.uuid),
+            "name": obj.sender.name,
+            "is_human": obj.sender.is_human,
+        }
+        result["receiver"] = {
+            "uuid": str(obj.receiver.uuid),
+            "name": obj.receiver.name,
+            "is_human": obj.receiver.is_human,
+        }
         return result
 
     def serialize_original_message(self, obj: OriginalMessage) -> Dict[str, Any]:
