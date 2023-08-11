@@ -136,7 +136,7 @@ class BotMerger(ABC):
         still_thinking: Optional[bool],
         sender: Optional["MergedParticipant"],
         receiver: "MergedParticipant",
-        parent_context: Optional["MergedMessage"],
+        parent_ctx_msg_uuid: Optional[UUID4],
         requesting_msg_uuid: Optional[UUID4] = None,
         **kwargs,
     ) -> "MergedMessage":
@@ -381,7 +381,7 @@ class SingleTurnContext:
             still_thinking=still_thinking,
             sender=self.this_bot,
             receiver=self.concluding_request.sender,
-            parent_context=self.concluding_request.parent_context,
+            parent_ctx_msg_uuid=self.concluding_request.parent_ctx_msg_uuid,
             requesting_msg_uuid=self.concluding_request.uuid,
             **kwargs,
         )

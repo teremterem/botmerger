@@ -128,10 +128,16 @@ class MergedMessage(BaseMessage, MergedObject, ABC):
     sender: MergedParticipant
     receiver: MergedParticipant
     still_thinking: bool
-    parent_context: Optional["MergedMessage"]
+    parent_ctx_msg_uuid: Optional[UUID4]
     requesting_msg_uuid: Optional[UUID4]
     prev_msg_uuid: Optional[UUID4]
     invisible_to_bots: bool = False
+
+    async def get_parent_context(self) -> Optional["MergedMessage"]:
+        """Get the parent context for this message."""
+        if self.parent_ctx_msg_uuid is None:
+            return None
+        return await self.merger.find_message(self.parent_ctx_msg_uuid)
 
     async def get_requesting_message(self) -> Optional["MergedMessage"]:
         """Get the message that requested this message."""

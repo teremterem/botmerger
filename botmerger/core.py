@@ -60,7 +60,7 @@ class BotMergerBase(BotMerger):
                 still_thinking=False,
                 sender=default_user,
                 receiver=default_user,
-                parent_context=None,
+                parent_ctx_msg_uuid=None,
                 requesting_msg_uuid=None,
                 prev_msg_uuid=None,
             )
@@ -135,7 +135,7 @@ class BotMergerBase(BotMerger):
                     still_thinking=False,
                     sender=override_sender,
                     receiver=context.this_bot,
-                    parent_context=override_parent_ctx,
+                    parent_ctx_msg_uuid=override_parent_ctx.uuid if override_parent_ctx else None,
                     **kwargs,
                 )
                 prepared_requests.append(request)
@@ -263,7 +263,7 @@ class BotMergerBase(BotMerger):
                 still_thinking=False,
                 sender=user,
                 receiver=user,
-                parent_context=None,
+                parent_ctx_msg_uuid=None,
                 requesting_msg_uuid=None,
                 prev_msg_uuid=None,
                 extra_fields={
@@ -286,7 +286,7 @@ class BotMergerBase(BotMerger):
         still_thinking: Optional[bool],
         sender: MergedParticipant,
         receiver: MergedParticipant,
-        parent_context: Optional[MergedMessage],
+        parent_ctx_msg_uuid: Optional[UUID4],
         requesting_msg_uuid: Optional[UUID4],
         prev_msg_uuid: Optional[UUID4],
         **kwargs,
@@ -303,7 +303,7 @@ class BotMergerBase(BotMerger):
                 receiver=receiver,
                 original_message=content,
                 still_thinking=still_thinking,
-                parent_context=parent_context,
+                parent_ctx_msg_uuid=parent_ctx_msg_uuid,
                 requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
@@ -328,17 +328,17 @@ class BotMergerBase(BotMerger):
                 receiver=receiver,
                 content=content,
                 still_thinking=still_thinking,
-                parent_context=parent_context,
+                parent_ctx_msg_uuid=parent_ctx_msg_uuid,
                 requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
             )
 
         await self._register_merged_object(message)
-        if message.parent_context:
+        if message.parent_ctx_msg_uuid:
             await self.set_mutable_state(
                 self._generate_latest_message_in_chat_key(
-                    message.parent_context.uuid, message.sender.uuid, message.receiver.uuid
+                    message.parent_ctx_msg_uuid, message.sender.uuid, message.receiver.uuid
                 ),
                 message.uuid,
             )
@@ -350,24 +350,24 @@ class BotMergerBase(BotMerger):
         still_thinking: Optional[bool],
         sender: Optional[MergedParticipant],
         receiver: MergedParticipant,
-        parent_context: Optional[MergedMessage],
+        parent_ctx_msg_uuid: Optional[UUID4],
         requesting_msg_uuid: Optional[UUID4] = None,
         **kwargs,
     ) -> MergedMessage:
         if not sender:
             sender = await self.get_default_user()
-        if not parent_context:
-            parent_context = await self.get_default_msg_ctx()
+        if not parent_ctx_msg_uuid:
+            parent_ctx_msg_uuid = (await self.get_default_msg_ctx()).uuid
 
         latest_message_uuid = await self.get_mutable_state(
-            self._generate_latest_message_in_chat_key(parent_context.uuid, sender.uuid, receiver.uuid)
+            self._generate_latest_message_in_chat_key(parent_ctx_msg_uuid, sender.uuid, receiver.uuid)
         )
         return await self._create_message(
             content=content,
             still_thinking=still_thinking,
             sender=sender,
             receiver=receiver,
-            parent_context=parent_context,
+            parent_ctx_msg_uuid=parent_ctx_msg_uuid,
             requesting_msg_uuid=requesting_msg_uuid,
             prev_msg_uuid=latest_message_uuid,
             **kwargs,

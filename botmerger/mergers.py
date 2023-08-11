@@ -82,9 +82,6 @@ class YamlSerializer(MergedSerializerVisitor):
     def _pre_serialize_message(self, obj: MergedMessage) -> Dict[str, Any]:
         result = self._pre_serialize(obj, exclude={"sender, receiver"})
 
-        # TODO TODO TODO
-        result.pop("parent_context")
-
         result["sender"] = {
             "uuid": str(obj.sender.uuid),
             "name": obj.sender.name,
@@ -95,9 +92,12 @@ class YamlSerializer(MergedSerializerVisitor):
             "name": obj.receiver.name,
             "is_human": obj.receiver.is_human,
         }
-        # TODO fetch the actual message short preview of the content for the sake of readability ?
+
+        # TODO fetch the short previews of the message contents for the sake of readability ?
+        result["parent_ctx_msg_uuid"] = str(obj.parent_ctx_msg_uuid) if obj.parent_ctx_msg_uuid else None
         result["requesting_msg_uuid"] = str(obj.requesting_msg_uuid) if obj.requesting_msg_uuid else None
         result["prev_msg_uuid"] = str(obj.prev_msg_uuid) if obj.prev_msg_uuid else None
+
         return result
 
     def serialize_original_message(self, obj: OriginalMessage) -> Dict[str, Any]:
