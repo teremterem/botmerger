@@ -129,9 +129,15 @@ class MergedMessage(BaseMessage, MergedObject, ABC):
     receiver: MergedParticipant
     still_thinking: bool
     parent_context: Optional["MergedMessage"]
-    responds_to: Optional["MergedMessage"]
+    requesting_msg_uuid: Optional[UUID4]
     prev_msg_uuid: Optional[UUID4]
     invisible_to_bots: bool = False
+
+    async def get_requesting_message(self) -> Optional["MergedMessage"]:
+        """Get the message that requested this message."""
+        if self.requesting_msg_uuid is None:
+            return None
+        return await self.merger.find_message(self.requesting_msg_uuid)
 
     async def get_previous_message(self) -> Optional["MergedMessage"]:
         """Get the previous message in the conversation."""

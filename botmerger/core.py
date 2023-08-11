@@ -61,7 +61,7 @@ class BotMergerBase(BotMerger):
                 sender=default_user,
                 receiver=default_user,
                 parent_context=None,
-                responds_to=None,
+                requesting_msg_uuid=None,
                 prev_msg_uuid=None,
             )
         return self._default_msg_ctx
@@ -264,7 +264,7 @@ class BotMergerBase(BotMerger):
                 sender=user,
                 receiver=user,
                 parent_context=None,
-                responds_to=None,
+                requesting_msg_uuid=None,
                 prev_msg_uuid=None,
                 extra_fields={
                     "channel_type": channel_type,
@@ -287,7 +287,7 @@ class BotMergerBase(BotMerger):
         sender: MergedParticipant,
         receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
-        responds_to: Optional[MergedMessage],
+        requesting_msg_uuid: Optional[UUID4],
         prev_msg_uuid: Optional[UUID4],
         **kwargs,
     ) -> OriginalMessage:
@@ -304,7 +304,7 @@ class BotMergerBase(BotMerger):
                 original_message=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
-                responds_to=responds_to,
+                requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
             )
@@ -329,7 +329,7 @@ class BotMergerBase(BotMerger):
                 content=content,
                 still_thinking=still_thinking,
                 parent_context=parent_context,
-                responds_to=responds_to,
+                requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
                 **kwargs,
             )
@@ -351,7 +351,7 @@ class BotMergerBase(BotMerger):
         sender: Optional[MergedParticipant],
         receiver: MergedParticipant,
         parent_context: Optional[MergedMessage],
-        responds_to: Optional[MergedMessage] = None,
+        requesting_msg_uuid: Optional[UUID4] = None,
         **kwargs,
     ) -> MergedMessage:
         if not sender:
@@ -368,7 +368,7 @@ class BotMergerBase(BotMerger):
             sender=sender,
             receiver=receiver,
             parent_context=parent_context,
-            responds_to=responds_to,
+            requesting_msg_uuid=requesting_msg_uuid,
             prev_msg_uuid=latest_message_uuid,
             **kwargs,
         )
@@ -422,7 +422,7 @@ class BotMergerBase(BotMerger):
     ) -> Tuple[str, UUID4, ...]:
         """Generate a key for the latest message in a given context."""
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
-        #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
+        #  in parallel ? should the conversation history be grouped by requesting_msg_uuid to account for that ?
         #  some other solution ? Maybe some random identifier stored in a ContextVar ?
         return "latest_message_in_chat", context_uuid, *sorted(participant_uuids)
 

@@ -84,7 +84,6 @@ class YamlSerializer(MergedSerializerVisitor):
 
         # TODO TODO TODO
         result.pop("parent_context")
-        result.pop("responds_to")
 
         result["sender"] = {
             "uuid": str(obj.sender.uuid),
@@ -97,6 +96,7 @@ class YamlSerializer(MergedSerializerVisitor):
             "is_human": obj.receiver.is_human,
         }
         # TODO fetch the actual message short preview of the content for the sake of readability ?
+        result["requesting_msg_uuid"] = str(obj.requesting_msg_uuid) if obj.requesting_msg_uuid else None
         result["prev_msg_uuid"] = str(obj.prev_msg_uuid) if obj.prev_msg_uuid else None
         return result
 

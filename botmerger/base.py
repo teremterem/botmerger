@@ -137,7 +137,7 @@ class BotMerger(ABC):
         sender: Optional["MergedParticipant"],
         receiver: "MergedParticipant",
         parent_context: Optional["MergedMessage"],
-        responds_to: Optional["MergedMessage"] = None,
+        requesting_msg_uuid: Optional[UUID4] = None,
         **kwargs,
     ) -> "MergedMessage":
         """
@@ -382,7 +382,7 @@ class SingleTurnContext:
             sender=self.this_bot,
             receiver=self.concluding_request.sender,
             parent_context=self.concluding_request.parent_context,
-            responds_to=self.concluding_request,
+            requesting_msg_uuid=self.concluding_request.uuid,
             **kwargs,
         )
         self._bot_responses._response_queue.put_nowait(response)
