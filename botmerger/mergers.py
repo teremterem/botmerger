@@ -125,10 +125,7 @@ class YamlSerializer(MergedSerializerVisitor):
     ) -> None:
         if not related_msg:
             return
-        result[field_name] = {
-            "uuid": str(related_msg.uuid),
-            "preview": str_shorten(related_msg.content, 50),
-        }
+        result[field_name] = {"uuid": str(related_msg.uuid), "preview": str_shorten(related_msg.content)}
 
     @staticmethod
     def _pre_serialize(obj: MergedObject, **kwargs) -> Dict[str, Any]:

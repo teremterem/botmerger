@@ -13,7 +13,7 @@ def format_error_with_full_tb(error: BaseException) -> str:
     return "".join(traceback.format_exception(type(error), error, error.__traceback__))
 
 
-def str_shorten(obj: Any, max_length=70) -> str:
+def str_shorten(obj: Any, max_length: int = 70) -> str:
     """Shorten a string representation of an object to max_length characters."""
     normalized_text = " ".join(str(obj).strip().split())
     if len(normalized_text) > max_length:
