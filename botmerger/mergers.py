@@ -12,7 +12,7 @@ from botmerger.base import (
     MergedSerializerVisitor,
 )
 from botmerger.core import BotMergerBase
-from botmerger.models import MergedBot, MergedUser, MergedMessage, OriginalMessage, ForwardedMessage
+from botmerger.models import MergedParticipant, MergedBot, MergedUser, MergedMessage, OriginalMessage, ForwardedMessage
 
 
 class InMemoryBotMerger(BotMergerBase):
@@ -33,7 +33,7 @@ class InMemoryBotMerger(BotMergerBase):
 
     async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
         if key in self._immutable_objects:
-            # TODO move this check to the base class
+            # TODO move this check to the base class ?
             raise ValueError(f"Object with key {key} already exists.")
         self._immutable_objects[key] = value
 
@@ -64,7 +64,9 @@ class YamlSerializer(MergedSerializerVisitor):
     """A YAML serializer for merged objects."""
 
     def _pre_serialize(self, obj: MergedObject, **kwargs) -> Dict[str, Any]:
-        result = obj.dict(**kwargs)
+        result = obj.dict(**kwargs, exclude_none=True)
+        if not result.get("extra_fields"):
+            result.pop("extra_fields", None)
         obj_uuid = result.pop("uuid")
         return {
             "_type": obj.__class__.__name__,
@@ -73,28 +75,33 @@ class YamlSerializer(MergedSerializerVisitor):
         }
 
     def serialize_bot(self, obj: MergedBot) -> Dict[str, Any]:
-        result = self._pre_serialize(obj)
-        # TODO TODO TODO
-        return result
+        return self._pre_serialize(obj, include={"uuid", "alias"})
 
     def serialize_user(self, obj: MergedUser) -> Dict[str, Any]:
-        result = self._pre_serialize(obj)
-        # TODO TODO TODO
-        return result
+        return self._pre_serialize(obj, exclude={"is_human"})
 
     def _pre_serialize_message(self, obj: MergedMessage) -> Dict[str, Any]:
         result = self._pre_serialize(obj, exclude={"sender, receiver"})
+        if not result.get("still_thinking"):
+            result.pop("still_thinking", None)
+        if not result.get("invisible_to_bots"):
+            result.pop("invisible_to_bots", None)
 
-        result["sender"] = {
-            "uuid": str(obj.sender.uuid),
-            "name": obj.sender.name,
-            "is_human": obj.sender.is_human,
-        }
-        result["receiver"] = {
-            "uuid": str(obj.receiver.uuid),
-            "name": obj.receiver.name,
-            "is_human": obj.receiver.is_human,
-        }
+        def _represent_participant(participant: MergedParticipant) -> Dict[str, Any]:
+            if isinstance(participant, MergedBot):
+                return {
+                    "uuid": str(participant.uuid),
+                    "bot_alias": participant.alias,
+                }
+            if isinstance(participant, MergedUser):
+                return {
+                    "uuid": str(participant.uuid),
+                    "human_name": participant.name,
+                }
+            raise ValueError(f"Unknown participant type: {type(participant)}")
+
+        result["sender"] = _represent_participant(obj.sender)
+        result["receiver"] = _represent_participant(obj.receiver)
 
         # TODO fetch the short previews of the message contents for the sake of readability ?
         result["parent_ctx_msg_uuid"] = str(obj.parent_ctx_msg_uuid) if obj.parent_ctx_msg_uuid else None
