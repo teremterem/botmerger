@@ -104,9 +104,9 @@ class YamlSerializer(MergedSerializerVisitor):
         result["receiver"] = _represent_participant(obj.receiver)
 
         # TODO fetch the short previews of the message contents for the sake of readability ?
-        result["parent_ctx_msg_uuid"] = str(obj.parent_ctx_msg_uuid) if obj.parent_ctx_msg_uuid else None
-        result["requesting_msg_uuid"] = str(obj.requesting_msg_uuid) if obj.requesting_msg_uuid else None
-        result["prev_msg_uuid"] = str(obj.prev_msg_uuid) if obj.prev_msg_uuid else None
+        # result["parent_ctx_msg_uuid"] = str(obj.parent_ctx_msg_uuid) if obj.parent_ctx_msg_uuid else None
+        # result["requesting_msg_uuid"] = str(obj.requesting_msg_uuid) if obj.requesting_msg_uuid else None
+        # result["prev_msg_uuid"] = str(obj.prev_msg_uuid) if obj.prev_msg_uuid else None
 
         return result
 
