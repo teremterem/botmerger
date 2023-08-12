@@ -32,6 +32,9 @@ class InMemoryBotMerger(BotMergerBase):
         return self._mutable_objects.get(key)
 
     async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
+        if key in self._immutable_objects:
+            # TODO move this check to the base class
+            raise ValueError(f"Object with key {key} already exists.")
         self._immutable_objects[key] = value
 
     async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
