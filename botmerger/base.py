@@ -166,26 +166,26 @@ class MergedSerializerVisitor(ABC):
     `MergedObject` instances into YAML, another one that serializes them into JSON, and so on.
     """
 
-    def serialize(self, obj: "MergedObject") -> Any:
+    async def serialize(self, obj: "MergedObject") -> Any:
         """Serialize MergedObject of an arbitrary type."""
         # pylint: disable=protected-access
         # noinspection PyProtectedMember
-        return obj._serialize(self)
+        return await obj._serialize(self)
 
     @abstractmethod
-    def serialize_bot(self, obj: "MergedBot") -> Any:
+    async def serialize_bot(self, obj: "MergedBot") -> Any:
         """Serialize a MergedBot instance."""
 
     @abstractmethod
-    def serialize_user(self, obj: "MergedUser") -> Any:
+    async def serialize_user(self, obj: "MergedUser") -> Any:
         """Serialize a MergedUser instance."""
 
     @abstractmethod
-    def serialize_original_message(self, obj: "OriginalMessage") -> Any:
+    async def serialize_original_message(self, obj: "OriginalMessage") -> Any:
         """Serialize an OriginalMessage instance."""
 
     @abstractmethod
-    def serialize_forwarded_message(self, obj: "ForwardedMessage") -> Any:
+    async def serialize_forwarded_message(self, obj: "ForwardedMessage") -> Any:
         """Serialize a ForwardedMessage instance."""
 
 
@@ -226,7 +226,7 @@ class MergedObject(BaseModel, ABC):
         return super().dict(**kwargs)
 
     @abstractmethod
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         """
         Serialize the model.
         :param visitor: A visitor object that will be used to serialize the model.

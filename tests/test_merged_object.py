@@ -11,7 +11,7 @@ from botmerger.base import MergedSerializerVisitor
 class SomeMergedObject(MergedObject):
     """A subclass of `MergedObject` for testing."""
 
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         """Empty serialization method to make the class concrete."""
 
 

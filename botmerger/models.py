@@ -107,9 +107,9 @@ class MergedBot(MergedParticipant):
     def __call__(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         return self.single_turn(handler)
 
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         # noinspection PyProtectedMember
-        return visitor.serialize_bot(self)
+        return await visitor.serialize_bot(self)
 
 
 class MergedUser(MergedParticipant):
@@ -117,9 +117,9 @@ class MergedUser(MergedParticipant):
 
     is_human: bool = Field(True, const=True)
 
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         # noinspection PyProtectedMember
-        return visitor.serialize_user(self)
+        return await visitor.serialize_user(self)
 
 
 class MergedMessage(BaseMessage, MergedObject, ABC):
@@ -201,9 +201,9 @@ class OriginalMessage(MergedMessage):
         """The original message is itself."""
         return self
 
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         # noinspection PyProtectedMember
-        return visitor.serialize_original_message(self)
+        return await visitor.serialize_original_message(self)
 
 
 class ForwardedMessage(MergedMessage):
@@ -221,6 +221,6 @@ class ForwardedMessage(MergedMessage):
         """The content of the original message."""
         return self.original_message.content
 
-    def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
         # noinspection PyProtectedMember
-        return visitor.serialize_forwarded_message(self)
+        return await visitor.serialize_forwarded_message(self)

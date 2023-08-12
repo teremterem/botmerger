@@ -13,6 +13,7 @@ from botmerger.base import (
 )
 from botmerger.core import BotMergerBase
 from botmerger.models import MergedParticipant, MergedBot, MergedUser, MergedMessage, OriginalMessage, ForwardedMessage
+from botmerger.utils import str_shorten
 
 
 class InMemoryBotMerger(BotMergerBase):
@@ -51,7 +52,7 @@ class YamlLogBotMerger(InMemoryBotMerger):
 
     async def _register_merged_object(self, obj: MergedObject) -> None:
         await super()._register_merged_object(obj)
-        serialized_obj = self._yaml_serializer.serialize(obj)
+        serialized_obj = await self._yaml_serializer.serialize(obj)
 
         append_delimiter = self._yaml_log_file.exists() and self._yaml_log_file.stat().st_size > 0
         with self._yaml_log_file.open("a", encoding="utf-8") as file:
@@ -63,31 +64,40 @@ class YamlLogBotMerger(InMemoryBotMerger):
 class YamlSerializer(MergedSerializerVisitor):
     """A YAML serializer for merged objects."""
 
-    def _pre_serialize(self, obj: MergedObject, **kwargs) -> Dict[str, Any]:
-        result = obj.dict(**kwargs, exclude_none=True)
-        if not result.get("extra_fields"):
-            result.pop("extra_fields", None)
-        obj_uuid = result.pop("uuid")
-        return {
-            "_type": obj.__class__.__name__,
-            "uuid": str(obj_uuid),
-            **result,
-        }
+    # TODO is this really YAML specific ? maybe it should be called something else ?
 
-    def serialize_bot(self, obj: MergedBot) -> Dict[str, Any]:
+    async def serialize_bot(self, obj: MergedBot) -> Dict[str, Any]:
         return self._pre_serialize(obj, include={"uuid", "alias"})
 
-    def serialize_user(self, obj: MergedUser) -> Dict[str, Any]:
+    async def serialize_user(self, obj: MergedUser) -> Dict[str, Any]:
         return self._pre_serialize(obj, exclude={"is_human"})
 
-    def _pre_serialize_message(self, obj: MergedMessage) -> Dict[str, Any]:
-        result = self._pre_serialize(obj, exclude={"sender, receiver"})
+    async def serialize_original_message(self, obj: OriginalMessage) -> Dict[str, Any]:
+        return await self._pre_serialize_message(obj)
+
+    async def serialize_forwarded_message(self, obj: ForwardedMessage) -> Dict[str, Any]:
+        result = await self._pre_serialize_message(obj)
+        self._add_related_msg_preview(result, "original_message", obj.original_message)
+        return result
+
+    async def _pre_serialize_message(self, obj: MergedMessage) -> Dict[str, Any]:
+        result = self._pre_serialize(
+            obj,
+            exclude={
+                "sender",
+                "receiver",
+                "original_message",
+                "prev_msg_uuid",
+                "requesting_msg_uuid",
+                "parent_ctx_msg_uuid",
+            },
+        )
         if not result.get("still_thinking"):
             result.pop("still_thinking", None)
         if not result.get("invisible_to_bots"):
             result.pop("invisible_to_bots", None)
 
-        def _represent_participant(participant: MergedParticipant) -> Dict[str, Any]:
+        def _repr_participant(participant: MergedParticipant) -> Dict[str, Any]:
             if isinstance(participant, MergedBot):
                 return {
                     "uuid": str(participant.uuid),
@@ -100,23 +110,31 @@ class YamlSerializer(MergedSerializerVisitor):
                 }
             raise ValueError(f"Unknown participant type: {type(participant)}")
 
-        result["sender"] = _represent_participant(obj.sender)
-        result["receiver"] = _represent_participant(obj.receiver)
+        result["sender"] = _repr_participant(obj.sender)
+        result["receiver"] = _repr_participant(obj.receiver)
 
-        # TODO fetch the short previews of the message contents for the sake of readability ?
-        # result["parent_ctx_msg_uuid"] = str(obj.parent_ctx_msg_uuid) if obj.parent_ctx_msg_uuid else None
-        # result["requesting_msg_uuid"] = str(obj.requesting_msg_uuid) if obj.requesting_msg_uuid else None
-        # result["prev_msg_uuid"] = str(obj.prev_msg_uuid) if obj.prev_msg_uuid else None
+        self._add_related_msg_preview(result, "previous_message", await obj.get_previous_message())
+        self._add_related_msg_preview(result, "requesting_message", await obj.get_requesting_message())
+        self._add_related_msg_preview(result, "parent_context", await obj.get_parent_context())
 
         return result
 
-    def serialize_original_message(self, obj: OriginalMessage) -> Dict[str, Any]:
-        result = self._pre_serialize_message(obj)
-        # TODO TODO TODO
-        return result
+    @staticmethod
+    def _add_related_msg_preview(
+        result: Dict[str, Any], field_name: str, related_msg: Optional[MergedMessage]
+    ) -> None:
+        if not related_msg:
+            return
+        result[field_name] = {
+            "uuid": str(related_msg.uuid),
+            "preview": str_shorten(related_msg.content, 50),
+        }
 
-    def serialize_forwarded_message(self, obj: ForwardedMessage) -> Dict[str, Any]:
-        result = self._pre_serialize_message(obj)
-        # TODO TODO TODO
-        result.pop("original_message")
+    @staticmethod
+    def _pre_serialize(obj: MergedObject, **kwargs) -> Dict[str, Any]:
+        result = obj.dict(**kwargs, exclude_none=True)
+        if not result.get("extra_fields"):
+            result.pop("extra_fields", None)
+        result["uuid"] = str(result["uuid"])
+        result["_type"] = obj.__class__.__name__
         return result
