@@ -365,11 +365,11 @@ class SingleTurnContext:
         return self.requests[-1]
 
     async def get_full_conversation(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
         return await self.concluding_request.get_full_conversation(
-            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+            max_length=max_length, include_hidden_from_history=include_hidden_from_history
         )
 
     async def yield_response(

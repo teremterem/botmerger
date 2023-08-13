@@ -143,7 +143,8 @@ class BotMergerBase(BotMerger):
                     caching_key.append(
                         # uuid is taken from the original message, but the extra fields are taken from the "forwarded"
                         # message
-                        # TODO should any other fields be taken from the "forwarded" message ? (e.g. invisible_to_bots)
+                        # TODO should any other fields be taken from the "forwarded" message ?
+                        #  (e.g. hidden_from_history)
                         (request.original_message.uuid, json.dumps(request.extra_fields, sort_keys=True))
                     )
 

@@ -131,7 +131,7 @@ class MergedMessage(BaseMessage, MergedObject, ABC):
     parent_ctx_msg_uuid: Optional[UUID4]
     requesting_msg_uuid: Optional[UUID4]
     prev_msg_uuid: Optional[UUID4]
-    invisible_to_bots: bool = False
+    hidden_from_history: bool = False
 
     async def get_parent_context(self) -> Optional["MergedMessage"]:
         """Get the parent context for this message."""
@@ -152,21 +152,21 @@ class MergedMessage(BaseMessage, MergedObject, ABC):
         return await self.merger.find_message(self.prev_msg_uuid)
 
     async def get_conversation_history(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the conversation history for this message (excluding this message)."""
         # TODO move this implementation to BotMergerBase
         history = []
         msg = await self.get_previous_message()
         while msg and (max_length is None or len(history) < max_length):
-            if include_invisible_to_bots or not msg.invisible_to_bots:
+            if include_hidden_from_history or not msg.hidden_from_history:
                 history.append(msg)
             msg = await msg.get_previous_message()
         history.reverse()
         return history
 
     async def get_full_conversation(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
         # TODO move this implementation to BotMergerBase
@@ -174,9 +174,9 @@ class MergedMessage(BaseMessage, MergedObject, ABC):
             # let's account for the current message as well
             max_length -= 1
         result = await self.get_conversation_history(
-            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+            max_length=max_length, include_hidden_from_history=include_hidden_from_history
         )
-        if include_invisible_to_bots or not self.invisible_to_bots:
+        if include_hidden_from_history or not self.hidden_from_history:
             result.append(self)
         return result
 
@@ -214,7 +214,7 @@ class ForwardedMessage(MergedMessage):
 
     original_message: MergedMessage
 
-    # TODO does `invisible_to_bots` need to be inherited from the original message as well ?
+    # TODO does `hidden_from_history` need to be inherited from the original message as well ?
 
     @property
     def content(self) -> MessageContent:

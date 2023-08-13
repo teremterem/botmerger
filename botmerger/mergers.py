@@ -94,8 +94,8 @@ class YamlSerializer(MergedSerializerVisitor):
         )
         if not result.get("still_thinking"):
             result.pop("still_thinking", None)
-        if not result.get("invisible_to_bots"):
-            result.pop("invisible_to_bots", None)
+        if not result.get("hidden_from_history"):
+            result.pop("hidden_from_history", None)
 
         def _repr_participant(participant: MergedParticipant) -> Dict[str, Any]:
             if isinstance(participant, MergedBot):
