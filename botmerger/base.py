@@ -373,7 +373,7 @@ class SingleTurnContext:
         )
 
     async def yield_response(
-        self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
+        self, response: MessageType, still_thinking: Optional[bool] = None, hidden_from_history: bool = False, **kwargs
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
@@ -383,31 +383,46 @@ class SingleTurnContext:
             receiver=self.concluding_request.sender,
             parent_ctx_msg_uuid=self.concluding_request.parent_ctx_msg_uuid,
             requesting_msg_uuid=self.concluding_request.uuid,
+            hidden_from_history=hidden_from_history,
             **kwargs,
         )
         self._bot_responses._response_queue.put_nowait(response)
         return response
 
-    async def yield_interim_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+    async def yield_interim_response(
+        self, response: MessageType, hidden_from_history: bool = False, **kwargs
+    ) -> "MergedMessage":
         """Yield an interim response to the request."""
-        return await self.yield_response(response, still_thinking=True, **kwargs)
+        return await self.yield_response(
+            response, still_thinking=True, hidden_from_history=hidden_from_history, **kwargs
+        )
 
-    async def yield_final_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+    async def yield_final_response(
+        self, response: MessageType, hidden_from_history: bool = False, **kwargs
+    ) -> "MergedMessage":
         """Yield a final response to the request."""
-        return await self.yield_response(response, still_thinking=False, **kwargs)
+        return await self.yield_response(
+            response, still_thinking=False, hidden_from_history=hidden_from_history, **kwargs
+        )
 
     async def yield_from(
         self,
         iterable: Iterable[MessageType] | AsyncIterable[MessageType],
         still_thinking: Optional[bool] = None,
+        hidden_from_history: bool = False,
     ) -> None:
         """Yield responses to the request from an iterable."""
+        # TODO should `hidden_from_history` also support None to mean "inherit from the iterable" ?
         if isinstance(iterable, abc.AsyncIterable):
             async for response in iterable:
-                await self.yield_response(response, still_thinking=still_thinking)
+                await self.yield_response(
+                    response, still_thinking=still_thinking, hidden_from_history=hidden_from_history
+                )
         else:
             for response in iterable:
-                await self.yield_response(response, still_thinking=still_thinking)
+                await self.yield_response(
+                    response, still_thinking=still_thinking, hidden_from_history=hidden_from_history
+                )
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""

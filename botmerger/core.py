@@ -130,6 +130,8 @@ class BotMergerBase(BotMerger):
             prepared_requests = []
 
             async def _prepare_merged_message(_request: MessageType) -> None:
+                # TODO what to do with `hidden_from_history` flag ? currently it is just False for every message.
+                #  should it be inherited in case messages are being forwarded ?
                 request = await self.create_next_message(
                     content=_request,
                     still_thinking=False,
@@ -290,8 +292,9 @@ class BotMergerBase(BotMerger):
         parent_ctx_msg_uuid: Optional[UUID4],
         requesting_msg_uuid: Optional[UUID4],
         prev_msg_uuid: Optional[UUID4],
+        hidden_from_history: bool = False,
         **kwargs,
-    ) -> OriginalMessage:
+    ) -> MergedMessage:
         if isinstance(content, MergedMessage):
             # we are forwarding a message from another thread (or from a different place in the same thread)
             if still_thinking is None:
@@ -307,6 +310,7 @@ class BotMergerBase(BotMerger):
                 parent_ctx_msg_uuid=parent_ctx_msg_uuid,
                 requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
+                hidden_from_history=hidden_from_history,
                 **kwargs,
             )
 
@@ -332,6 +336,7 @@ class BotMergerBase(BotMerger):
                 parent_ctx_msg_uuid=parent_ctx_msg_uuid,
                 requesting_msg_uuid=requesting_msg_uuid,
                 prev_msg_uuid=prev_msg_uuid,
+                hidden_from_history=hidden_from_history,
                 **kwargs,
             )
 
@@ -353,6 +358,7 @@ class BotMergerBase(BotMerger):
         receiver: MergedParticipant,
         parent_ctx_msg_uuid: Optional[UUID4],
         requesting_msg_uuid: Optional[UUID4] = None,
+        hidden_from_history: bool = False,
         **kwargs,
     ) -> MergedMessage:
         if not sender:
@@ -371,6 +377,7 @@ class BotMergerBase(BotMerger):
             parent_ctx_msg_uuid=parent_ctx_msg_uuid,
             requesting_msg_uuid=requesting_msg_uuid,
             prev_msg_uuid=latest_message_uuid,
+            hidden_from_history=hidden_from_history,
             **kwargs,
         )
 
