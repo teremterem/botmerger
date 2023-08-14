@@ -25,7 +25,14 @@ from pydantic import BaseModel, UUID4, Field
 from botmerger.errors import ErrorWrapper
 
 if TYPE_CHECKING:
-    from botmerger.models import MergedBot, MergedMessage, MergedParticipant, MergedUser
+    from botmerger.models import (
+        MergedBot,
+        MergedMessage,
+        MergedParticipant,
+        MergedUser,
+        OriginalMessage,
+        ForwardedMessage,
+    )
 
 SingleTurnHandler = Callable[["SingleTurnContext"], Awaitable[None]]
 MessageContent = Union[str, BaseModel, Any]  # a string, a Pydantic model, a dataclass or a json-serializable object
@@ -129,8 +136,8 @@ class BotMerger(ABC):
         still_thinking: Optional[bool],
         sender: Optional["MergedParticipant"],
         receiver: "MergedParticipant",
-        parent_context: Optional["MergedMessage"],
-        responds_to: Optional["MergedMessage"] = None,
+        parent_ctx_msg_uuid: Optional[UUID4],
+        requesting_msg_uuid: Optional[UUID4] = None,
         **kwargs,
     ) -> "MergedMessage":
         """
@@ -151,7 +158,38 @@ class BotMerger(ABC):
         """Get a mutable state associated with a given key."""
 
 
-class MergedObject(BaseModel):
+class MergedSerializerVisitor(ABC):
+    """
+    A visitor for `MergedObject` serialization. This is an abstract class that should be subclassed by concrete
+    implementations. The purpose of this class is to allow for serialization of `MergedObject` instances in a way that
+    is independent of the serialization format. For example, one can implement a serializer that serializes
+    `MergedObject` instances into YAML, another one that serializes them into JSON, and so on.
+    """
+
+    async def serialize(self, obj: "MergedObject") -> Any:
+        """Serialize MergedObject of an arbitrary type."""
+        # pylint: disable=protected-access
+        # noinspection PyProtectedMember
+        return await obj._serialize(self)
+
+    @abstractmethod
+    async def serialize_bot(self, obj: "MergedBot") -> Any:
+        """Serialize a MergedBot instance."""
+
+    @abstractmethod
+    async def serialize_user(self, obj: "MergedUser") -> Any:
+        """Serialize a MergedUser instance."""
+
+    @abstractmethod
+    async def serialize_original_message(self, obj: "OriginalMessage") -> Any:
+        """Serialize an OriginalMessage instance."""
+
+    @abstractmethod
+    async def serialize_forwarded_message(self, obj: "ForwardedMessage") -> Any:
+        """Serialize a ForwardedMessage instance."""
+
+
+class MergedObject(BaseModel, ABC):
     """
     Base class for all BotMerger models. All the child classes of this class are meant to be immutable. Whatever
     mutable state one needs to associate with these objects should not be stored in the objects directly. Instead,
@@ -179,6 +217,20 @@ class MergedObject(BaseModel):
     # TODO freeze the contents of `extra_data` upon model creation recursively
     # TODO validate that all values in `extra_fields` are json-serializable
     extra_fields: Dict[str, Any] = Field(default_factory=dict)
+
+    def dict(self, **kwargs):
+        """Get a dict representation of the model."""
+        exclude = kwargs.get("exclude")
+        exclude = kwargs["exclude"] = set(exclude) if exclude else set()
+        exclude.add("merger")
+        return super().dict(**kwargs)
+
+    @abstractmethod
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        """
+        Serialize the model.
+        :param visitor: A visitor object that will be used to serialize the model.
+        """
 
     def __eq__(self, other: object) -> bool:
         """Check if two models represent the same concept."""
@@ -313,15 +365,15 @@ class SingleTurnContext:
         return self.requests[-1]
 
     async def get_full_conversation(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
         return await self.concluding_request.get_full_conversation(
-            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+            max_length=max_length, include_hidden_from_history=include_hidden_from_history
         )
 
     async def yield_response(
-        self, response: MessageType, still_thinking: Optional[bool] = None, **kwargs
+        self, response: MessageType, still_thinking: Optional[bool] = None, hidden_from_history: bool = False, **kwargs
     ) -> "MergedMessage":
         """Yield a response to the request."""
         response = await self.merger.create_next_message(
@@ -329,33 +381,48 @@ class SingleTurnContext:
             still_thinking=still_thinking,
             sender=self.this_bot,
             receiver=self.concluding_request.sender,
-            parent_context=self.concluding_request.parent_context,
-            responds_to=self.concluding_request,
+            parent_ctx_msg_uuid=self.concluding_request.parent_ctx_msg_uuid,
+            requesting_msg_uuid=self.concluding_request.uuid,
+            hidden_from_history=hidden_from_history,
             **kwargs,
         )
         self._bot_responses._response_queue.put_nowait(response)
         return response
 
-    async def yield_interim_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+    async def yield_interim_response(
+        self, response: MessageType, hidden_from_history: bool = False, **kwargs
+    ) -> "MergedMessage":
         """Yield an interim response to the request."""
-        return await self.yield_response(response, still_thinking=True, **kwargs)
+        return await self.yield_response(
+            response, still_thinking=True, hidden_from_history=hidden_from_history, **kwargs
+        )
 
-    async def yield_final_response(self, response: MessageType, **kwargs) -> "MergedMessage":
+    async def yield_final_response(
+        self, response: MessageType, hidden_from_history: bool = False, **kwargs
+    ) -> "MergedMessage":
         """Yield a final response to the request."""
-        return await self.yield_response(response, still_thinking=False, **kwargs)
+        return await self.yield_response(
+            response, still_thinking=False, hidden_from_history=hidden_from_history, **kwargs
+        )
 
     async def yield_from(
         self,
         iterable: Iterable[MessageType] | AsyncIterable[MessageType],
         still_thinking: Optional[bool] = None,
+        hidden_from_history: bool = False,
     ) -> None:
         """Yield responses to the request from an iterable."""
+        # TODO should `hidden_from_history` also support None to mean "inherit from the iterable" ?
         if isinstance(iterable, abc.AsyncIterable):
             async for response in iterable:
-                await self.yield_response(response, still_thinking=still_thinking)
+                await self.yield_response(
+                    response, still_thinking=still_thinking, hidden_from_history=hidden_from_history
+                )
         else:
             for response in iterable:
-                await self.yield_response(response, still_thinking=still_thinking)
+                await self.yield_response(
+                    response, still_thinking=still_thinking, hidden_from_history=hidden_from_history
+                )
 
     def __enter__(self) -> "SingleTurnContext":
         """Set this context as the current context."""

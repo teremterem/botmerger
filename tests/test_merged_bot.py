@@ -1,5 +1,5 @@
 """Tests for the `MergedBot` class."""
-from botmerger.core import InMemoryBotMerger
+from botmerger import InMemoryBotMerger
 
 
 def test_merged_bot() -> None:

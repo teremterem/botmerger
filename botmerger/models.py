@@ -1,8 +1,9 @@
 # pylint: disable=no-name-in-module,too-many-arguments
 """Models for the BotMerger library."""
+from abc import ABC
 from typing import Any, Optional, Union, Iterable, List
 
-from pydantic import Field
+from pydantic import Field, UUID4
 
 from botmerger.base import (
     MergedObject,
@@ -11,10 +12,11 @@ from botmerger.base import (
     MessageContent,
     MessageType,
     BaseMessage,
+    MergedSerializerVisitor,
 )
 
 
-class MergedParticipant(MergedObject):
+class MergedParticipant(MergedObject, ABC):
     """A chat participant."""
 
     name: str
@@ -105,51 +107,76 @@ class MergedBot(MergedParticipant):
     def __call__(self, handler: SingleTurnHandler) -> SingleTurnHandler:
         return self.single_turn(handler)
 
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return await visitor.serialize_bot(self)
+
 
 class MergedUser(MergedParticipant):
     """A user that can interact with bots."""
 
     is_human: bool = Field(True, const=True)
 
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return await visitor.serialize_user(self)
 
-class MergedMessage(BaseMessage, MergedObject):
+
+class MergedMessage(BaseMessage, MergedObject, ABC):
     """A message that was sent in a channel."""
 
     sender: MergedParticipant
     receiver: MergedParticipant
     still_thinking: bool
-    parent_context: Optional["MergedMessage"]
-    responds_to: Optional["MergedMessage"]
-    goes_after: Optional["MergedMessage"]
-    invisible_to_bots: bool = False
+    parent_ctx_msg_uuid: Optional[UUID4]
+    requesting_msg_uuid: Optional[UUID4]
+    prev_msg_uuid: Optional[UUID4]
+    hidden_from_history: bool = False
+
+    async def get_parent_context(self) -> Optional["MergedMessage"]:
+        """Get the parent context for this message."""
+        if self.parent_ctx_msg_uuid is None:
+            return None
+        return await self.merger.find_message(self.parent_ctx_msg_uuid)
+
+    async def get_requesting_message(self) -> Optional["MergedMessage"]:
+        """Get the message that requested this message."""
+        if self.requesting_msg_uuid is None:
+            return None
+        return await self.merger.find_message(self.requesting_msg_uuid)
+
+    async def get_previous_message(self) -> Optional["MergedMessage"]:
+        """Get the previous message in the conversation."""
+        if self.prev_msg_uuid is None:
+            return None
+        return await self.merger.find_message(self.prev_msg_uuid)
 
     async def get_conversation_history(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the conversation history for this message (excluding this message)."""
-        # TODO does it need to by async ?
-        # TODO move this functionality to BotMerger ?
+        # TODO move this implementation to BotMergerBase
         history = []
-        msg = self.goes_after
+        msg = await self.get_previous_message()
         while msg and (max_length is None or len(history) < max_length):
-            if include_invisible_to_bots or not msg.invisible_to_bots:
+            if include_hidden_from_history or not msg.hidden_from_history:
                 history.append(msg)
-            msg = msg.goes_after
+            msg = await msg.get_previous_message()
         history.reverse()
         return history
 
     async def get_full_conversation(
-        self, max_length: Optional[int] = None, include_invisible_to_bots: bool = False
+        self, max_length: Optional[int] = None, include_hidden_from_history: bool = False
     ) -> List["MergedMessage"]:
         """Get the full conversation history for this message (including this message)."""
-        # TODO does it need to by async ?
+        # TODO move this implementation to BotMergerBase
         if max_length is not None:
             # let's account for the current message as well
             max_length -= 1
         result = await self.get_conversation_history(
-            max_length=max_length, include_invisible_to_bots=include_invisible_to_bots
+            max_length=max_length, include_hidden_from_history=include_hidden_from_history
         )
-        if include_invisible_to_bots or not self.invisible_to_bots:
+        if include_hidden_from_history or not self.hidden_from_history:
             result.append(self)
         return result
 
@@ -159,6 +186,8 @@ class MergedMessage(BaseMessage, MergedObject):
         msg = self
         while isinstance(msg, ForwardedMessage):
             msg = msg.original_message
+        if not isinstance(msg, OriginalMessage):
+            raise RuntimeError("OriginalMessage not found")
         return msg
 
 
@@ -172,6 +201,10 @@ class OriginalMessage(MergedMessage):
         """The original message is itself."""
         return self
 
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return await visitor.serialize_original_message(self)
+
 
 class ForwardedMessage(MergedMessage):
     """
@@ -181,9 +214,13 @@ class ForwardedMessage(MergedMessage):
 
     original_message: MergedMessage
 
-    # TODO does `invisible_to_bots` need to be inherited from the original message as well ?
+    # TODO does `hidden_from_history` need to be inherited from the original message as well ?
 
     @property
     def content(self) -> MessageContent:
         """The content of the original message."""
         return self.original_message.content
+
+    async def _serialize(self, visitor: MergedSerializerVisitor) -> Any:
+        # noinspection PyProtectedMember
+        return await visitor.serialize_forwarded_message(self)

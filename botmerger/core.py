@@ -1,5 +1,5 @@
 # pylint: disable=no-name-in-module,too-many-arguments
-"""Implementations of BotMerger class."""
+"""Base abstract implementation of the BotMerger interface."""
 import asyncio
 import dataclasses
 import json
@@ -60,9 +60,9 @@ class BotMergerBase(BotMerger):
                 still_thinking=False,
                 sender=default_user,
                 receiver=default_user,
-                parent_context=None,
-                responds_to=None,
-                goes_after=None,
+                parent_ctx_msg_uuid=None,
+                requesting_msg_uuid=None,
+                prev_msg_uuid=None,
             )
         return self._default_msg_ctx
 
@@ -130,12 +130,14 @@ class BotMergerBase(BotMerger):
             prepared_requests = []
 
             async def _prepare_merged_message(_request: MessageType) -> None:
+                # TODO what to do with `hidden_from_history` flag ? currently it is just False for every message.
+                #  should it be inherited in case messages are being forwarded ?
                 request = await self.create_next_message(
                     content=_request,
                     still_thinking=False,
                     sender=override_sender,
                     receiver=context.this_bot,
-                    parent_context=override_parent_ctx,
+                    parent_ctx_msg_uuid=override_parent_ctx.uuid if override_parent_ctx else None,
                     **kwargs,
                 )
                 prepared_requests.append(request)
@@ -143,7 +145,8 @@ class BotMergerBase(BotMerger):
                     caching_key.append(
                         # uuid is taken from the original message, but the extra fields are taken from the "forwarded"
                         # message
-                        # TODO should any other fields be taken from the "forwarded" message ? (e.g. invisible_to_bots)
+                        # TODO should any other fields be taken from the "forwarded" message ?
+                        #  (e.g. hidden_from_history)
                         (request.original_message.uuid, json.dumps(request.extra_fields, sort_keys=True))
                     )
 
@@ -192,13 +195,13 @@ class BotMergerBase(BotMerger):
 
     def create_bot(
         self,
-        alias: str,
+        alias: Union[str, SingleTurnHandler],
         name: Optional[str] = None,
         description: Optional[str] = None,
         no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
-    ) -> MergedBot:
+    ) -> Union[MergedBot, SingleTurnHandler]:
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
             self.create_bot_async(
@@ -208,13 +211,20 @@ class BotMergerBase(BotMerger):
 
     async def create_bot_async(
         self,
-        alias: str,
+        alias: Union[str, SingleTurnHandler],
         name: Optional[str] = None,
         description: Optional[str] = None,
         no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
-    ) -> MergedBot:
+    ) -> Union[MergedBot, SingleTurnHandler]:
+        if callable(alias):
+            # TODO "bare decorator" is a temporary solution for the "optional alias" problem - replace with a better
+            #  implementation which allows passing other parameters (`name`, `description`, etc.) when alias is
+            #  omitted (because "bare decorator" does not allow that)
+            bot = await self.create_bot_async(alias.__name__)
+            return bot.single_turn(alias)
+
         if await self._get_bot(alias):
             raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
 
@@ -263,9 +273,9 @@ class BotMergerBase(BotMerger):
                 still_thinking=False,
                 sender=user,
                 receiver=user,
-                parent_context=None,
-                responds_to=None,
-                goes_after=None,
+                parent_ctx_msg_uuid=None,
+                requesting_msg_uuid=None,
+                prev_msg_uuid=None,
                 extra_fields={
                     "channel_type": channel_type,
                     "channel_id": channel_id,
@@ -286,11 +296,12 @@ class BotMergerBase(BotMerger):
         still_thinking: Optional[bool],
         sender: MergedParticipant,
         receiver: MergedParticipant,
-        parent_context: Optional[MergedMessage],
-        responds_to: Optional[MergedMessage],
-        goes_after: Optional[MergedMessage],
+        parent_ctx_msg_uuid: Optional[UUID4],
+        requesting_msg_uuid: Optional[UUID4],
+        prev_msg_uuid: Optional[UUID4],
+        hidden_from_history: bool = False,
         **kwargs,
-    ) -> OriginalMessage:
+    ) -> MergedMessage:
         if isinstance(content, MergedMessage):
             # we are forwarding a message from another thread (or from a different place in the same thread)
             if still_thinking is None:
@@ -303,9 +314,10 @@ class BotMergerBase(BotMerger):
                 receiver=receiver,
                 original_message=content,
                 still_thinking=still_thinking,
-                parent_context=parent_context,
-                responds_to=responds_to,
-                goes_after=goes_after,
+                parent_ctx_msg_uuid=parent_ctx_msg_uuid,
+                requesting_msg_uuid=requesting_msg_uuid,
+                prev_msg_uuid=prev_msg_uuid,
+                hidden_from_history=hidden_from_history,
                 **kwargs,
             )
 
@@ -328,17 +340,18 @@ class BotMergerBase(BotMerger):
                 receiver=receiver,
                 content=content,
                 still_thinking=still_thinking,
-                parent_context=parent_context,
-                responds_to=responds_to,
-                goes_after=goes_after,
+                parent_ctx_msg_uuid=parent_ctx_msg_uuid,
+                requesting_msg_uuid=requesting_msg_uuid,
+                prev_msg_uuid=prev_msg_uuid,
+                hidden_from_history=hidden_from_history,
                 **kwargs,
             )
 
         await self._register_merged_object(message)
-        if message.parent_context:
+        if message.parent_ctx_msg_uuid:
             await self.set_mutable_state(
                 self._generate_latest_message_in_chat_key(
-                    message.parent_context.uuid, message.sender.uuid, message.receiver.uuid
+                    message.parent_ctx_msg_uuid, message.sender.uuid, message.receiver.uuid
                 ),
                 message.uuid,
             )
@@ -350,31 +363,28 @@ class BotMergerBase(BotMerger):
         still_thinking: Optional[bool],
         sender: Optional[MergedParticipant],
         receiver: MergedParticipant,
-        parent_context: Optional[MergedMessage],
-        responds_to: Optional[MergedMessage] = None,
+        parent_ctx_msg_uuid: Optional[UUID4],
+        requesting_msg_uuid: Optional[UUID4] = None,
+        hidden_from_history: bool = False,
         **kwargs,
     ) -> MergedMessage:
         if not sender:
             sender = await self.get_default_user()
-        if not parent_context:
-            parent_context = await self.get_default_msg_ctx()
+        if not parent_ctx_msg_uuid:
+            parent_ctx_msg_uuid = (await self.get_default_msg_ctx()).uuid
 
         latest_message_uuid = await self.get_mutable_state(
-            self._generate_latest_message_in_chat_key(parent_context.uuid, sender.uuid, receiver.uuid)
+            self._generate_latest_message_in_chat_key(parent_ctx_msg_uuid, sender.uuid, receiver.uuid)
         )
-        if latest_message_uuid:
-            latest_message = await self.find_message(latest_message_uuid)
-        else:
-            latest_message = None
-
         return await self._create_message(
             content=content,
             still_thinking=still_thinking,
             sender=sender,
             receiver=receiver,
-            parent_context=parent_context,
-            responds_to=responds_to,
-            goes_after=latest_message,
+            parent_ctx_msg_uuid=parent_ctx_msg_uuid,
+            requesting_msg_uuid=requesting_msg_uuid,
+            prev_msg_uuid=latest_message_uuid,
+            hidden_from_history=hidden_from_history,
             **kwargs,
         )
 
@@ -427,7 +437,7 @@ class BotMergerBase(BotMerger):
     ) -> Tuple[str, UUID4, ...]:
         """Generate a key for the latest message in a given context."""
         # TODO what to do when the same sender calls the same receiver within the same context message multiple times
-        #  in parallel ? should the conversation history be grouped by responds_to to account for that ?
+        #  in parallel ? should the conversation history be grouped by requesting_msg_uuid to account for that ?
         #  some other solution ? Maybe some random identifier stored in a ContextVar ?
         return "latest_message_in_chat", context_uuid, *sorted(participant_uuids)
 
@@ -439,26 +449,3 @@ class BotMergerBase(BotMerger):
                 f"wrong type of object by the key {key!r}: "
                 f"expected {expected_type.__name__!r}, got {type(obj).__name__!r}",
             )
-
-
-class InMemoryBotMerger(BotMergerBase):
-    """An in-memory object manager."""
-
-    # TODO should in-memory implementation care about eviction of old objects ?
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._immutable_objects: Dict[ObjectKey, Any] = {}
-        self._mutable_objects: Dict[UUID4, Any] = {}
-
-    async def set_mutable_state(self, key: ObjectKey, state: Any) -> None:
-        self._mutable_objects[key] = state
-
-    async def get_mutable_state(self, key: ObjectKey) -> Optional[Any]:
-        return self._mutable_objects.get(key)
-
-    async def _register_immutable_object(self, key: ObjectKey, value: Any) -> None:
-        self._immutable_objects[key] = value
-
-    async def _get_immutable_object(self, key: ObjectKey) -> Optional[Any]:
-        return self._immutable_objects.get(key)
