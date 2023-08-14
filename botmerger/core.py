@@ -195,13 +195,13 @@ class BotMergerBase(BotMerger):
 
     def create_bot(
         self,
-        alias: str,
+        alias: Union[str, SingleTurnHandler],
         name: Optional[str] = None,
         description: Optional[str] = None,
         no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
-    ) -> MergedBot:
+    ) -> Union[MergedBot, SingleTurnHandler]:
         # start a temporary event loop and call the async version of this method from there
         return asyncio.run(
             self.create_bot_async(
@@ -211,13 +211,20 @@ class BotMergerBase(BotMerger):
 
     async def create_bot_async(
         self,
-        alias: str,
+        alias: Union[str, SingleTurnHandler],
         name: Optional[str] = None,
         description: Optional[str] = None,
         no_cache: bool = False,
         single_turn: Optional[SingleTurnHandler] = None,
         **kwargs,
-    ) -> MergedBot:
+    ) -> Union[MergedBot, SingleTurnHandler]:
+        if callable(alias):
+            # TODO "bare decorator" is a temporary solution for the "optional alias" problem - replace with a better
+            #  implementation which allows passing other parameters (`name`, `description`, etc.) when alias is
+            #  omitted (because "bare decorator" does not allow that)
+            bot = await self.create_bot_async(alias.__name__)
+            return bot.single_turn(alias)
+
         if await self._get_bot(alias):
             raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
 
