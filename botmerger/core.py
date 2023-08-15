@@ -347,6 +347,10 @@ class BotMergerBase(BotMerger):
                 **kwargs,
             )
 
+        await self._register_message(message)
+        return message
+
+    async def _register_message(self, message: MergedMessage) -> None:
         await self._register_merged_object(message)
         if message.parent_ctx_msg_uuid:
             await self.set_mutable_state(
@@ -355,7 +359,6 @@ class BotMergerBase(BotMerger):
                 ),
                 message.uuid,
             )
-        return message
 
     async def create_next_message(
         self,
