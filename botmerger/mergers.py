@@ -1,7 +1,6 @@
 """Various concrete implementations of the BotMerger interface."""
 # pylint: disable=no-name-in-module
 from pathlib import Path
-from pprint import pprint
 from typing import Any, Optional, Dict, Union
 from uuid import UUID
 
@@ -60,11 +59,8 @@ class YamlLogBotMerger(InMemoryBotMerger):
 
         if self._non_empty_yaml_log_exists:
             with self._yaml_log_file.open("r", encoding="utf-8") as file:
-                # TODO TODO TODO
                 for obj in yaml.safe_load_all(file):
-                    print()
-                    pprint(obj)
-                    print()
+                    self._yaml_serializer.deserialize_object(self, obj)
 
         self._serialization_enabled = True
 
