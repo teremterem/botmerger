@@ -140,6 +140,7 @@ class YamlSerializer(MergedSerializerVisitor):
         prev_msg_uuid = UUID(obj.pop("previous_message")["uuid"]) if obj.get("previous_message") else None
         requesting_msg_uuid = UUID(obj.pop("requesting_message")["uuid"]) if obj.get("requesting_message") else None
         parent_ctx_msg_uuid = UUID(obj.pop("parent_context")["uuid"]) if obj.get("parent_context") else None
+        still_thinking = obj.pop("still_thinking") if obj.get("still_thinking") else False
         # TODO solve the following problem - `_get_correct_object` belongs to BotMergerBase class, not to BotMerger
         message = OriginalMessage(
             merger=merger,
@@ -149,6 +150,7 @@ class YamlSerializer(MergedSerializerVisitor):
             prev_msg_uuid=prev_msg_uuid,
             requesting_msg_uuid=requesting_msg_uuid,
             parent_ctx_msg_uuid=parent_ctx_msg_uuid,
+            still_thinking=still_thinking,
             **obj,
         )
         # TODO solve the following problem - the method below belongs to BotMergerBase class, not to BotMerger
@@ -169,6 +171,7 @@ class YamlSerializer(MergedSerializerVisitor):
         prev_msg_uuid = UUID(obj.pop("previous_message")["uuid"]) if obj.get("previous_message") else None
         requesting_msg_uuid = UUID(obj.pop("requesting_message")["uuid"]) if obj.get("requesting_message") else None
         parent_ctx_msg_uuid = UUID(obj.pop("parent_context")["uuid"]) if obj.get("parent_context") else None
+        still_thinking = obj.pop("still_thinking") if obj.get("still_thinking") else False
         # TODO solve the following problem - `_get_correct_object` belongs to BotMergerBase class, not to BotMerger
         message = ForwardedMessage(
             merger=merger,
@@ -179,6 +182,7 @@ class YamlSerializer(MergedSerializerVisitor):
             prev_msg_uuid=prev_msg_uuid,
             requesting_msg_uuid=requesting_msg_uuid,
             parent_ctx_msg_uuid=parent_ctx_msg_uuid,
+            still_thinking=still_thinking,
             **obj,
         )
         # TODO solve the following problem - the method below belongs to BotMergerBase class, not to BotMerger
