@@ -1,5 +1,6 @@
-"""Various concrete implementations of the BotMerger interface."""
 # pylint: disable=no-name-in-module
+"""Various concrete implementations of the BotMerger interface."""
+import asyncio
 from pathlib import Path
 from typing import Any, Optional, Dict, Union
 from uuid import UUID
@@ -58,11 +59,16 @@ class YamlLogBotMerger(InMemoryBotMerger):
         self._serialization_enabled = False
 
         if self._non_empty_yaml_log_exists:
-            with self._yaml_log_file.open("r", encoding="utf-8") as file:
-                for obj in yaml.safe_load_all(file):
-                    self._yaml_serializer.deserialize_object(self, obj)
+            # TODO decide if it is a bad hack or not (because of this `run` merger can only be constructed before
+            #  event loop is created)
+            asyncio.run(self._read_existing_yaml_log())
 
         self._serialization_enabled = True
+
+    async def _read_existing_yaml_log(self) -> None:
+        with self._yaml_log_file.open("r", encoding="utf-8") as file:
+            for obj in yaml.safe_load_all(file):
+                await self._yaml_serializer.deserialize_object(self, obj)
 
     async def _register_merged_object(self, obj: MergedObject) -> None:
         await super()._register_merged_object(obj)
@@ -104,6 +110,7 @@ class YamlSerializer(MergedSerializerVisitor):
     async def deserialize_bot(self, merger: BotMerger, obj: Dict[str, Any]) -> None:
         # TODO when a bot with the same alias is created, make sure to merge it with the loaded one
         bot = MergedBot(
+            merger=merger,
             uuid=UUID(obj["uuid"]),
             alias=obj["alias"],
             # TODO this is a hack until I figure out how to merge loaded bots with ones that are being set up
@@ -118,7 +125,7 @@ class YamlSerializer(MergedSerializerVisitor):
     async def deserialize_user(self, merger: BotMerger, obj: Dict[str, Any]) -> None:
         # TODO is it a bad idea to pop keys out of the original dictionary that was passed ?
         user_uuid = UUID(obj.pop("uuid"))
-        user = MergedUser(uuid=user_uuid, **obj)
+        user = MergedUser(merger=merger, uuid=user_uuid, **obj)
         # TODO solve the following problem - the method below belongs to BotMergerBase class, not to BotMerger
         await merger._register_merged_object(user)
 
@@ -135,6 +142,7 @@ class YamlSerializer(MergedSerializerVisitor):
         parent_ctx_msg_uuid = UUID(obj.pop("parent_context")["uuid"]) if obj.get("parent_context") else None
         # TODO solve the following problem - `_get_correct_object` belongs to BotMergerBase class, not to BotMerger
         message = OriginalMessage(
+            merger=merger,
             uuid=msg_uuid,
             sender=await merger._get_correct_object(sender_uuid, MergedParticipant),
             receiver=await merger._get_correct_object(receiver_uuid, MergedParticipant),
@@ -163,6 +171,7 @@ class YamlSerializer(MergedSerializerVisitor):
         parent_ctx_msg_uuid = UUID(obj.pop("parent_context")["uuid"]) if obj.get("parent_context") else None
         # TODO solve the following problem - `_get_correct_object` belongs to BotMergerBase class, not to BotMerger
         message = ForwardedMessage(
+            merger=merger,
             uuid=msg_uuid,
             original_message=await merger.find_message(original_msg_uuid),
             sender=await merger._get_correct_object(sender_uuid, MergedParticipant),
