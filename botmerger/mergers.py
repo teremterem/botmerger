@@ -153,8 +153,16 @@ class YamlSerializer(MergedSerializerVisitor):
             still_thinking=still_thinking,
             **obj,
         )
-        # TODO solve the following problem - the method below belongs to BotMergerBase class, not to BotMerger
+        # TODO solve the following problem - the methods below belong to BotMergerBase class, not to BotMerger
         await merger._register_message(message)
+
+        # TODO do not explicitly rely on the presence of the `channel_type` and `channel_id` fields explicitly ?
+        #  support more generic serialization/deserialization at the level of `_register_immutable_object` instead ?
+        channel_type = message.extra_fields.get("channel_type")
+        channel_id = message.extra_fields.get("channel_id")
+        if channel_type and channel_id:
+            key = merger._generate_channel_key(channel_type=channel_type, channel_id=channel_id)
+            await merger._register_immutable_object(key, message.uuid)
 
     async def serialize_forwarded_message(self, obj: ForwardedMessage) -> Dict[str, Any]:
         result = await self._pre_serialize_message(obj)
