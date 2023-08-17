@@ -19,7 +19,7 @@ from botmerger.base import (
     ObjectKey,
     MessageType,
 )
-from botmerger.errors import BotAliasTakenError, BotNotFoundError
+from botmerger.errors import BotNotFoundError
 from botmerger.models import (
     MergedBot,
     MergedUser,
@@ -225,12 +225,23 @@ class BotMergerBase(BotMerger):
             bot = await self.create_bot_async(alias.__name__)
             return bot.single_turn(alias)
 
-        if await self._get_bot(alias):
-            raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
+        # # TODO restore this check when the hack below is removed
+        # if await self._get_bot(alias):
+        #     raise BotAliasTakenError(f"bot with alias {alias!r} is already registered")
 
         if not name:
             name = alias
-        bot = MergedBot(merger=self, alias=alias, name=name, description=description, no_cache=no_cache, **kwargs)
+        # TODO this is a hack that violates immutability of MergedBot for the sake of merging the bot being set up
+        #  with the bot that was loaded from the yaml log - come up with a design that does not require this
+        bot = await self._get_bot(alias)
+        if bot:
+            bot.name = name
+            bot.description = description
+            bot.no_cache = no_cache
+            for key, value in kwargs.items():
+                setattr(bot, key, value)
+        else:
+            bot = MergedBot(merger=self, alias=alias, name=name, description=description, no_cache=no_cache, **kwargs)
 
         await self._register_bot(bot)
 
