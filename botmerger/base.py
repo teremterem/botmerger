@@ -207,7 +207,9 @@ class MergedObject(BaseModel, ABC):
         this config as well.
         """
 
-        allow_mutation = False
+        # # TODO make these objects properly immutable when hacks like the one about merging serialized bots with bots
+        # #  being set up are removed (see `BotMergerBase.create_bot_async`)
+        # allow_mutation = False
         copy_on_model_validation = "none"
         arbitrary_types_allowed = True
 
