@@ -242,8 +242,7 @@ class BotMergerBase(BotMerger):
                 setattr(bot, key, value)
         else:
             bot = MergedBot(merger=self, alias=alias, name=name, description=description, no_cache=no_cache, **kwargs)
-
-        await self._register_bot(bot)
+            await self._register_bot(bot)
 
         if single_turn:
             bot.single_turn(single_turn)
