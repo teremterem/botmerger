@@ -17,6 +17,7 @@ from typing import (
     Tuple,
     Iterable,
     AsyncIterable,
+    AsyncIterator,
 )
 from uuid import uuid4, UUID
 
@@ -73,6 +74,12 @@ class BotMerger(ABC):
         """
         Find a bot by its alias and trigger this bot to respond to a message or messages. Returns an object that can
         be used to retrieve the bot's response(s) in an asynchronous manner.
+        """
+
+    async def replay(self, request_msg_uuid: UUID4) -> "BotResponses":
+        """
+        Replay a message by its uuid. The message plays the role of a request. The bot that responded to the message
+        will be triggered to respond again.
         """
 
     @abstractmethod
@@ -271,7 +278,8 @@ class BotResponses:
         self._cached_bot_response_iterator: Optional[BotResponses._Iterator] = None
         self._lock = Lock()
 
-    def __aiter__(self) -> "BotResponses._Iterator":
+    def __aiter__(self) -> AsyncIterator["MergedMessage"]:
+        # noinspection PyTypeChecker
         return BotResponses._Iterator(self)
 
     async def get_all_responses(self) -> List["MergedMessage"]:
@@ -382,7 +390,7 @@ class SingleTurnContext:
             content=response,
             still_thinking=still_thinking,
             sender=self.this_bot,
-            receiver=self.concluding_request.sender,
+            receiver=self.concluding_request.sender,  # TODO should it be parent_ctx.this_bot instead (to fix replay) ?
             parent_ctx_msg_uuid=self.concluding_request.parent_ctx_msg_uuid,
             requesting_msg_uuid=self.concluding_request.uuid,
             hidden_from_history=hidden_from_history,
@@ -409,7 +417,7 @@ class SingleTurnContext:
 
     async def yield_from(
         self,
-        iterable: Iterable[MessageType] | AsyncIterable[MessageType],
+        iterable: Union[Iterable[MessageType], AsyncIterable[MessageType]],
         still_thinking: Optional[bool] = None,
         hidden_from_history: bool = False,
     ) -> None:

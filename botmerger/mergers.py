@@ -48,7 +48,7 @@ class InMemoryBotMerger(BotMergerBase):
 class YamlLogBotMerger(InMemoryBotMerger):
     """A bot merger that logs all the objects to a YAML file."""
 
-    def __init__(self, yaml_log_file: Union[str, Path]) -> None:
+    def __init__(self, yaml_log_file: Union[str, Path], serialization_enabled: bool = True) -> None:
         super().__init__()
         self._yaml_log_file = yaml_log_file if isinstance(yaml_log_file, Path) else Path(yaml_log_file)
         self._non_empty_yaml_log_exists = self._yaml_log_file.exists() and self._yaml_log_file.stat().st_size > 0
@@ -63,7 +63,7 @@ class YamlLogBotMerger(InMemoryBotMerger):
             #  event loop is created)
             asyncio.run(self._read_existing_yaml_log())
 
-        self._serialization_enabled = True
+        self._serialization_enabled = serialization_enabled
 
     async def _read_existing_yaml_log(self) -> None:
         with self._yaml_log_file.open("r", encoding="utf-8") as file:
