@@ -193,6 +193,41 @@ class BotMergerBase(BotMerger):
         finally:
             context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
 
+    # noinspection PyProtectedMember,PyMethodMayBeStatic
+    async def _replay_single_turn_handler(
+        self,
+        handler: SingleTurnHandler,
+        context: SingleTurnContext,
+        request: "MergedMessage",
+    ) -> None:
+        # TODO avoid duplication of the caching_key building code
+        caching_key: Tuple[Any, ...] = (
+            "bot_response_cache",
+            context.this_bot.alias,
+            request.original_message.uuid,
+            json.dumps(request.extra_fields, sort_keys=True),
+        )
+        # pylint: disable=broad-except,protected-access
+        try:
+            context.requests = (request,)
+
+            if not context.this_bot.no_cache:
+                # TODO come up with a way to put only json serializable stuff into the "mutable state"
+                # TODO introduce some sort of CachedBotResponses class, capable of creating new "forwarded"
+                #  messages that become part of the new chat history every time those response messages are
+                #  fetched from the cache (but it shouldn't forward the "forwarded" messages, it should
+                #  forward the original messages instead)
+                await self.set_mutable_state(caching_key, context._bot_responses)
+
+            with context:
+                await handler(context)
+
+        except Exception as exc:
+            logger.debug(exc, exc_info=exc)
+            context._bot_responses._response_queue.put_nowait(exc)
+        finally:
+            context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
+
     def create_bot(
         self,
         alias: Union[str, SingleTurnHandler],
