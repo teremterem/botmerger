@@ -96,7 +96,6 @@ class BotMergerBase(BotMerger):
             this_bot=bot,
             bot_responses=bot_responses,
         )
-
         asyncio.create_task(
             self._run_single_turn_handler(
                 handler=handler,
@@ -109,7 +108,6 @@ class BotMergerBase(BotMerger):
                 **kwargs,
             )
         )
-
         return bot_responses
 
     # noinspection PyProtectedMember,PyMethodMayBeStatic
@@ -192,6 +190,31 @@ class BotMergerBase(BotMerger):
             context._bot_responses._response_queue.put_nowait(exc)
         finally:
             context._bot_responses._response_queue.put_nowait(context._bot_responses._END_OF_RESPONSES)
+
+    async def replay(self, request_msg_uuid: UUID4) -> BotResponses:
+        request = await self.find_message(request_msg_uuid)
+        if request is None:
+            raise ValueError(f"Request message with uuid {request_msg_uuid} not found.")
+        if not isinstance(request.receiver, MergedBot):
+            raise ValueError(f"Message with uuid {request_msg_uuid} wasn't originally sent to a bot.")
+        bot = request.receiver
+
+        handler = self._single_turn_handlers[bot.uuid]
+
+        bot_responses = BotResponses()
+        context = SingleTurnContext(
+            merger=self,
+            this_bot=bot,
+            bot_responses=bot_responses,
+        )
+        asyncio.create_task(
+            self._replay_single_turn_handler(
+                handler=handler,
+                context=context,
+                request=request,
+            )
+        )
+        return bot_responses
 
     # noinspection PyProtectedMember,PyMethodMayBeStatic
     async def _replay_single_turn_handler(
