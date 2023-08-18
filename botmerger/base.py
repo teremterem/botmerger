@@ -262,7 +262,7 @@ class BaseMessage:
     original_message: "MergedMessage"
 
 
-class BotResponses(AsyncIterable["MergedMessage"]):
+class BotResponses:
     """
     A class that represents a stream of responses from a bot. It is an async iterator that yields `MergedMessage`
     objects. It also has a method `get_all_responses` that will block until all the responses are received and then
