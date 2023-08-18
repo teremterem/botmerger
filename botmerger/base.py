@@ -390,7 +390,7 @@ class SingleTurnContext:
             content=response,
             still_thinking=still_thinking,
             sender=self.this_bot,
-            receiver=self.concluding_request.sender,
+            receiver=self.concluding_request.sender,  # TODO should it be parent_ctx.this_bot instead (to fix replay) ?
             parent_ctx_msg_uuid=self.concluding_request.parent_ctx_msg_uuid,
             requesting_msg_uuid=self.concluding_request.uuid,
             hidden_from_history=hidden_from_history,
