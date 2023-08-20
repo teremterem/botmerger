@@ -77,6 +77,7 @@ class YamlLogBotMerger(InMemoryBotMerger):
 
         serialized_obj = await self._yaml_serializer.serialize(obj)
 
+        self._yaml_log_file.parent.mkdir(parents=True, exist_ok=True)
         with self._yaml_log_file.open("a", encoding="utf-8") as file:
             if self._non_empty_yaml_log_exists:
                 file.write("\n---\n\n")
