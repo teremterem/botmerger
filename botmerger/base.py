@@ -330,13 +330,13 @@ class BotResponses:
             self._index = 0
 
         async def __anext__(self) -> "MergedMessage":
-            try:
+            if self._index < len(self._bot_responses.responses_so_far):
                 response = self._bot_responses.responses_so_far[self._index]
-            except IndexError:
+            else:
                 async with self._bot_responses._lock:
-                    try:
+                    if self._index < len(self._bot_responses.responses_so_far):
                         response = self._bot_responses.responses_so_far[self._index]
-                    except IndexError:
+                    else:
                         # this will also raise StopAsyncIteration if there are no more responses
                         response = await self._bot_responses._wait_for_next_response()
 
